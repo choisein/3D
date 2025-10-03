@@ -22,6 +22,7 @@
                     <a href="#services" class="nav-link">서비스</a>
                     <a href="#products" class="nav-link">금융상품</a>
                     <a href="#support" class="nav-link">고객지원</a>
+                    <a href="#" class="nav-link" onclick="showSecurityPage(event)">보안이슈</a>
                 </nav>
                 <div class="auth-buttons">
                     <button class="btn btn-outline" onclick="openModal('loginModal')">로그인</button>
@@ -287,6 +288,137 @@
 
     <!-- 알림 메시지 -->
     <div id="notification" class="notification"></div>
+
+    <!-- 보안이슈 전체 페이지 -->
+    <div id="securityPage" class="security-page">
+        <div class="security-page-header">
+            <button class="back-button" onclick="hideSecurityPage()">← 뒤로가기</button>
+            <div class="container">
+                <h1>보안 모니터링 센터</h1>
+                <p>실시간 보안 위협 탐지 및 대응 현황</p>
+            </div>
+        </div>
+
+        <div class="security-page-content">
+            <div class="container">
+                <!-- 실시간 통계 -->
+                <div class="security-stats">
+                    <div class="stat-card danger">
+                        <div class="stat-label">탐지된 공격 시도</div>
+                        <div class="stat-value" id="attackCount">247</div>
+                        <div class="stat-change up">↑ 지난 시간 대비 12% 증가</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-label">차단된 IP 주소</div>
+                        <div class="stat-value" id="blockedIPs">38</div>
+                        <div class="stat-change">최근 24시간</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-label">방어 성공률</div>
+                        <div class="stat-value">99.8%</div>
+                        <div class="stat-change down">↓ 공격 차단 완료</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">의심스러운 활동</div>
+                        <div class="stat-value" id="suspiciousCount">15</div>
+                        <div class="stat-change">모니터링 중</div>
+                    </div>
+                </div>
+
+                <!-- 긴급 알림 -->
+                <div class="alert-box danger">
+                    <span class="alert-icon">⚠️</span>
+                    <div>
+                        <strong>긴급:</strong> 크리덴셜 스터핑 공격이 탐지되었습니다. 
+                        IP 주소 203.142.x.x에서 1분간 152회의 로그인 시도가 발생했습니다.
+                    </div>
+                </div>
+
+                <!-- 최근 보안 이슈 -->
+                <div class="security-section">
+                    <h2 class="section-title">최근 보안 이슈</h2>
+                    
+                    <div class="issue-list">
+                        <div class="issue-item">
+                            <div class="issue-header">
+                                <div>
+                                    <div class="issue-title">대량 로그인 시도 탐지 (크리덴셜 스터핑)</div>
+                                    <div class="issue-description">
+                                        동일한 User-Agent에서 여러 IP를 통해 1시간 내 523회의 로그인 시도가 발생했습니다. 
+                                        HTTP 헤더 패턴 분석 결과 자동화된 봇 공격으로 판단됩니다.
+                                    </div>
+                                    <div class="issue-meta">
+                                        <span>📅 2024-01-15 14:32</span>
+                                        <span>🌐 IP: 203.142.*.* (38개)</span>
+                                        <span>🎯 대상: 127개 계정</span>
+                                    </div>
+                                </div>
+                                <span class="issue-severity severity-critical">긴급</span>
+                            </div>
+                        </div>
+
+                        <div class="issue-item">
+                            <div class="issue-header">
+                                <div>
+                                    <div class="issue-title">의심스러운 HTTP 헤더 패턴 감지</div>
+                                    <div class="issue-description">
+                                        비정상적인 Accept-Language 헤더 조합이 반복적으로 탐지되었습니다. 
+                                        프록시를 통한 분산 공격 시도로 추정됩니다.
+                                    </div>
+                                    <div class="issue-meta">
+                                        <span>📅 2024-01-15 13:15</span>
+                                        <span>🌐 IP: 185.220.*.* (15개)</span>
+                                        <span>🔍 패턴: 봇 의심</span>
+                                    </div>
+                                </div>
+                                <span class="issue-severity severity-high">높음</span>
+                            </div>
+                        </div>
+
+                        <div class="issue-item">
+                            <div class="issue-header">
+                                <div>
+                                    <div class="issue-title">단시간 다중 계정 로그인 실패</div>
+                                    <div class="issue-description">
+                                        5분 내에 동일 IP에서 43개의 서로 다른 계정에 로그인 시도. 
+                                        유출된 계정 정보를 이용한 무차별 대입 공격으로 판단됩니다.
+                                    </div>
+                                    <div class="issue-meta">
+                                        <span>📅 2024-01-15 12:48</span>
+                                        <span>🌐 IP: 91.203.*.* </span>
+                                        <span>⏱️ 시도 횟수: 43회</span>
+                                    </div>
+                                </div>
+                                <span class="issue-severity severity-high">높음</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 차단된 IP 목록 -->
+                <div class="security-section">
+                    <h2 class="section-title">차단된 IP 주소</h2>
+                    <div class="blocked-ips">
+                        <div class="ip-item">
+                            <div class="ip-address">203.142.78.45</div>
+                            <div class="ip-info">차단 사유: 크리덴셜 스터핑</div>
+                            <div class="ip-info">시도 횟수: 152회</div>
+                        </div>
+                        <div class="ip-item">
+                            <div class="ip-address">185.220.101.23</div>
+                            <div class="ip-info">차단 사유: 봇 활동 감지</div>
+                            <div class="ip-info">시도 횟수: 89회</div>
+                        </div>
+                        <div class="ip-item">
+                            <div class="ip-address">91.203.5.167</div>
+                            <div class="ip-info">차단 사유: 무차별 대입 공격</div>
+                            <div class="ip-info">시도 횟수: 43회</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- JavaScript 파일 -->
     <script src="script.js"></script>
