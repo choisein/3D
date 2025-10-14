@@ -1,0 +1,87 @@
+// MySQL 연결 시도
+//$conn = new mysqli($servername, $username, $password, $dbname);
+
+// 연결 실패 시 종료
+//if ($conn->connect_error) {
+//    die("❌ MySQL 연결 실패: " . $conn->connect_error);
+//}
+
+// 연결 성공 시 메시지
+//echo "✅ MySQL 연결 성공<br>";
+
+
+<?php
+// 🚫 PHP 경고, 에러 HTML로 출력되지 않게 차단
+error_reporting(0);
+ini_set('display_errors', 0);
+
+require_once 'connect.php';
+
+header('Content-Type: application/json; charset=utf-8');
+
+// POST로 받은 값
+$id = $_POST['loginId'] ?? '';
+$password = $_POST['password'] ?? '';
+
+if (!$id || !$password) {
+    echo json_encode(["success" => false, "message" => "아이디와 비밀번호를 입력해주세요."]);
+    exit;
+}
+
+try {
+    // ✅ 테이블 이름 정확히 확인 (IDsave 기준)
+    $stmt = $pdo->prepare("SELECT * FROM IDsave WHERE ID = ?");
+    $stmt->execute([$id]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($password, $user['Password'])) {
+        echo json_encode(["success" => true, "message" => "로그인 성공"]);
+    } else {
+        echo json_encode(["success" => false, "message" => "아이디 또는 비밀번호가 일치하지 않습니다."]);
+    }
+
+} catch (PDOException $e) {
+    // 🚨 PHP 내부 DB 에러도 JSON으로 반환
+    echo json_encode([
+        "success" => false,
+        "message" => "DB 오류 발생: " . $e->getMessage()
+    ]);
+}
+?>
+
+
+//login_log.php
+<?php
+header('Content-Type: application/json; charset=utf-8');
+include 'connect.php';
+
+// ✅ POST로 전달받은 데이터
+$usernum = $_POST['usernum'] ?? '';
+$ip = $_POST['ip'] ?? '';
+$location = $_POST['location'] ?? 'Unknown';
+
+// 기본값 검증
+if (empty($usernum) || empty($ip)) {
+    echo json_encode(["success" => false, "message" => "로그 데이터가 부족합니다."], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+try {
+    // 로그 저장
+    $usernum = $user['IDnum']; // 실제 테이블의 PK
+$logStmt = $pdo->prepare("
+    INSERT INTO Loginlog (Usernum, IP, location, data)
+    VALUES (?, ?, ?, NOW())
+");
+$logStmt->execute([$usernum, $ip, $location]);
+
+
+    echo json_encode(["success" => true, "message" => "로그 기록 완료"], JSON_UNESCAPED_UNICODE);
+} catch (PDOException $e) {
+    echo json_encode(["success" => false, "message" => "DB 오류: " . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+}
+?>
+
+SET @count = 0;
+UPDATE Loginlog SET lognum = @count := @count + 1 ORDER BY lognum;
+ALTER TABLE Loginlog AUTO_INCREMENT = 1;

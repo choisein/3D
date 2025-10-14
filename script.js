@@ -654,3 +654,72 @@ window.SecureBank = {
     currentUser: () => currentUser,
     logout: handleLogout
 };
+
+console.log("SecureBank 시스템이 로드되었습니다.");
+
+// 로그인 처리
+async function handleLogin(event) {
+  event.preventDefault();
+  const id = document.getElementById("loginId").value.trim();
+  const pw = document.getElementById("loginPassword").value.trim();
+
+  if (!id || !pw) {
+    alert("아이디와 비밀번호를 입력하세요.");
+    return;
+  }
+
+  try {
+    const res = await fetch("backend/login.php", {
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  body: `loginId=${encodeURIComponent(id)}&password=${encodeURIComponent(pw)}`
+});
+const data = await res.json();
+alert(data.message);
+if (data.success) closeModal('loginModal');
+
+  } catch (err) {
+    alert("서버 오류가 발생했습니다.");
+    console.error(err);
+  }
+}
+
+// 회원가입 처리
+async function handleSignup(event) {
+  event.preventDefault();
+  const id = document.getElementById("signupId").value.trim();
+  const pw = document.getElementById("signupPassword").value.trim();
+  const confirm = document.getElementById("confirmPassword").value.trim();
+
+  if (!id || !pw) {
+    alert("아이디와 비밀번호를 입력하세요.");
+    return;
+  }
+  if (pw !== confirm) {
+    alert("비밀번호가 일치하지 않습니다.");
+    return;
+  }
+
+  try {
+   const res = await fetch("backend/login.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `loginId=${encodeURIComponent(id)}&password=${encodeURIComponent(pw)}`
+    });
+
+    const data = await res.json();
+    alert(data.message);
+    if (data.success) switchModal("signupModal", "loginModal");
+  } catch (err) {
+    alert("서버 오류가 발생했습니다.");
+    console.error(err);
+  }
+}
+
+// 알림 표시
+function showNotification(msg) {
+  const n = document.getElementById('notification');
+  n.innerText = msg;
+  n.classList.add('show');
+  setTimeout(() => n.classList.remove('show'), 3000);
+}
