@@ -1,0 +1,684 @@
+/* ========================================
+   관리자 대시보드 전용 스타일시트
+   SecureBank - Credential Stuffing Detection System
+   ======================================== */
+
+/* ========================================
+   CSS 변수 확장 (관리자 페이지 전용)
+   ======================================== */
+:root {
+    /* 상태 색상 */
+    --success-color: #10b981;
+    --success-light: #d1fae5;
+    --warning-color: #f59e0b;
+    --warning-light: #fef3c7;
+    --danger-color: #ef4444;
+    --danger-light: #fee2e2;
+    --info-color: #3b82f6;
+    --info-light: #dbeafe;
+    
+    /* 위험도 색상 */
+    --risk-high: #dc2626;
+    --risk-medium: #f59e0b;
+    --risk-low: #10b981;
+    
+    /* 그림자 */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    
+    /* 간격 */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --spacing-2xl: 48px;
+}
+
+/* ========================================
+   관리자 헤더
+   ======================================== */
+.admin-header {
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+    box-shadow: var(--shadow-md);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding: var(--spacing-md) 0;
+}
+
+.admin-nav-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.admin-header .logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--white);
+    font-size: 24px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.logo-icon {
+    font-size: 28px;
+}
+
+.admin-nav {
+    display: flex;
+    gap: var(--spacing-xl);
+}
+
+.admin-nav .nav-link {
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    font-weight: 500;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.admin-nav .nav-link:hover,
+.admin-nav .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: var(--white);
+}
+
+.admin-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.admin-name {
+    color: var(--white);
+    font-weight: 500;
+}
+
+.admin-info .btn-outline {
+    border-color: var(--white);
+    color: var(--white);
+}
+
+.admin-info .btn-outline:hover {
+    background-color: var(--white);
+    color: var(--primary-color);
+}
+
+/* ========================================
+   대시보드 메인 영역
+   ======================================== */
+.admin-dashboard {
+    margin-top: 80px; /* 헤더 높이만큼 여백 */
+    padding: var(--spacing-2xl) 0;
+    background-color: #f9fafb;
+    min-height: calc(100vh - 80px);
+}
+
+/* 대시보드 헤더 */
+.dashboard-header {
+    margin-bottom: var(--spacing-2xl);
+    text-align: center;
+}
+
+.dashboard-header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.dashboard-subtitle {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+.last-update {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-md);
+    background-color: var(--info-light);
+    color: var(--info-color);
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ========================================
+   통계 카드 섹션 (상단 3개 박스)
+   백엔드 연동 포인트: totalLoginAttempts, detectedAttacks, secondaryDefenseCount
+   ======================================== */
+.stats-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-2xl);
+}
+
+.stat-card {
+    background-color: var(--white);
+    border-radius: 12px;
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-left: 4px solid transparent;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
+}
+
+/* 카드 타입별 색상 */
+.stat-card-primary {
+    border-left-color: var(--info-color);
+}
+
+.stat-card-danger {
+    border-left-color: var(--danger-color);
+}
+
+.stat-card-warning {
+    border-left-color: var(--warning-color);
+}
+
+.stat-icon {
+    font-size: 48px;
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(59, 130, 246, 0.1);
+    border-radius: 12px;
+}
+
+.stat-card-danger .stat-icon {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.stat-card-warning .stat-icon {
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+    /* 백엔드에서 숫자 데이터를 이 요소에 주입 */
+}
+
+.stat-change {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.stat-change.positive {
+    color: var(--success-color);
+}
+
+.stat-change.negative {
+    color: var(--danger-color);
+}
+
+/* ========================================
+   메인 콘텐츠 섹션 (로그인 기록 + 차트)
+   ======================================== */
+.content-section {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-2xl);
+}
+
+/* 섹션 헤더 */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.section-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* ========================================
+   로그인 기록 테이블
+   백엔드 연동 포인트: /api/admin/login-logs
+   ======================================== */
+.login-logs-container {
+    background-color: var(--white);
+    border-radius: 12px;
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-md);
+}
+
+/* 필터 버튼 */
+.filter-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.filter-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--border-color);
+    background-color: var(--white);
+    color: var(--text-secondary);
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.filter-btn:hover {
+    background-color: var(--secondary-color);
+    border-color: var(--primary-color);
+}
+
+.filter-btn.active {
+    background-color: var(--primary-color);
+    color: var(--white);
+    border-color: var(--primary-color);
+}
+
+/* 테이블 컨테이너 */
+.table-container {
+    overflow-x: auto;
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.login-logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.login-logs-table thead {
+    background-color: var(--secondary-color);
+}
+
+.login-logs-table th {
+    padding: var(--spacing-md);
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.login-logs-table tbody tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s ease;
+}
+
+.login-logs-table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* 위험도에 따른 행 스타일 */
+.login-logs-table tbody tr.risk-high {
+    background-color: rgba(239, 68, 68, 0.05);
+}
+
+.login-logs-table tbody tr.risk-medium {
+    background-color: rgba(245, 158, 11, 0.05);
+}
+
+.login-logs-table tbody tr.risk-low {
+    background-color: rgba(16, 185, 129, 0.03);
+}
+
+.login-logs-table td {
+    padding: var(--spacing-md);
+    color: var(--text-primary);
+}
+
+/* 긴 텍스트 말줄임 */
+.login-logs-table td.truncate {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 위험도 배지 */
+.risk-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.risk-badge.risk-high {
+    background-color: var(--danger-light);
+    color: var(--danger-color);
+}
+
+.risk-badge.risk-medium {
+    background-color: var(--warning-light);
+    color: var(--warning-color);
+}
+
+.risk-badge.risk-low {
+    background-color: var(--success-light);
+    color: var(--success-color);
+}
+
+/* 상태 배지 */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-badge.status-blocked {
+    background-color: var(--danger-light);
+    color: var(--danger-color);
+}
+
+.status-badge.status-warning {
+    background-color: var(--warning-light);
+    color: var(--warning-color);
+}
+
+.status-badge.status-success {
+    background-color: var(--success-light);
+    color: var(--success-color);
+}
+
+/* 페이지네이션 */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.pagination-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--border-color);
+    background-color: var(--white);
+    color: var(--text-primary);
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: var(--primary-color);
+    color: var(--white);
+    border-color: var(--primary-color);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* ========================================
+   차트 컨테이너 (원 그래프)
+   백엔드 연동 포인트: /api/admin/attack-distribution
+   ======================================== */
+.chart-container {
+    background-color: var(--white);
+    border-radius: 12px;
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+    margin-bottom: var(--spacing-lg);
+}
+
+#attackDistributionChart {
+    max-height: 300px;
+    /* Chart.js가 이 캔버스에 차트를 렌더링 */
+}
+
+/* 차트 범례 */
+.chart-legend {
+    margin-top: var(--spacing-lg);
+}
+
+.chart-legend h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-md);
+}
+
+.legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius);
+    transition: background-color 0.2s ease;
+}
+
+.legend-item:hover {
+    background-color: var(--secondary-color);
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.legend-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.legend-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    line-height: 1.5;
+}
+
+/* 실시간 업데이트 인디케이터 */
+.live-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--success-light);
+    color: var(--success-color);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: auto;
+    width: fit-content;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--success-color);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ========================================
+   반응형 디자인
+   ======================================== */
+@media (max-width: 1200px) {
+    .content-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        order: -1; /* 차트를 먼저 표시 */
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-nav {
+        display: none; /* 모바일에서는 네비게이션 숨김 */
+    }
+    
+    .stats-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-header h1 {
+        font-size: 24px;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-md);
+    }
+    
+    .filter-buttons {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .filter-btn {
+        flex: 1;
+        text-align: center;
+    }
+    
+    /* 테이블 반응형 */
+    .table-container {
+        overflow-x: auto;
+    }
+    
+    .login-logs-table {
+        font-size: 12px;
+    }
+    
+    .login-logs-table th,
+    .login-logs-table td {
+        padding: var(--spacing-sm);
+    }
+    
+    .login-logs-table td.truncate {
+        max-width: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-dashboard {
+        padding: var(--spacing-lg) 0;
+    }
+    
+    .stat-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 28px;
+    }
+    
+    .chart-wrapper {
+        height: 250px;
+    }
+}
+
+/* ========================================
+   추가 유틸리티 클래스
+   ======================================== */
+.text-bold {
+    font-weight: 700;
+}
+
+.text-white {
+    color: var(--white);
+}
+
+.text-center {
+    text-align: center;
+}
+
+.mt-lg {
+    margin-top: var(--spacing-lg);
+}
+
+.mb-lg {
+    margin-bottom: var(--spacing-lg);
+}
+
+/* 스크롤바 스타일링 */
+.table-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background-color: var(--secondary-color);
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background-color: var(--primary-color);
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background-color: var(--primary-hover);
+}
