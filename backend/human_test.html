@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>인증 필요</title>
+</head>
+<body>
+<h2>추가 인증</h2>
+<p>아래 버튼이 랜덤한 위치에 나타나면 빠르게 눌러주세요.</p>
+
+<div id="buttonArea" style="position: relative; width: 400px; height: 300px; border: 1px solid #ccc;">
+</div>
+
+<script>
+let startTime = null;
+
+function spawnButton() {
+    const btn = document.createElement("button");
+    btn.innerText = "눌러주세요";
+
+    btn.style.position = "absolute";
+    btn.style.left = Math.random() * 300 + "px";
+    btn.style.top = Math.random() * 200 + "px";
+
+    btn.onclick = function () {
+        const reaction = Date.now() - startTime;
+
+        fetch("test_verify.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "reaction=" + reaction
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            if (data.status === "success") {
+                window.location.href = "index.php"; // 로그인 성공 처리
+            } else {
+                spawnButton(); // 다시 테스트
+            }
+        });
+    };
+
+    const area = document.getElementById("buttonArea");
+    area.innerHTML = "";
+    area.appendChild(btn);
+
+    startTime = Date.now();
+}
+
+spawnButton();
+</script>
+</body>
+</html>
