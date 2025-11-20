@@ -939,3 +939,103 @@ body {
         font-size: 28px;
     }
 }
+
+/* 동적 캡차 스타일 */
+.captcha-container {
+    display: none;
+    margin-top: 16px;
+    padding: 20px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #6a5af9, #4d7cfe);
+    color: #ffffff;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+}
+
+.captcha-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.captcha-icon {
+    font-size: 20px;
+}
+
+.captcha-instruction {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    margin: 8px 0 16px;
+}
+
+.captcha-button-wrapper {
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.captcha-button {
+    background: #ffffff;
+    color: #4d7cfe;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.captcha-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.captcha-button:active {
+    transform: scale(0.98);
+}
+
+.captcha-button.verified {
+    background: #10b981;
+    color: #ffffff;
+    pointer-events: none;
+}
+
+.captcha-button.failed {
+    background: #ef4444;
+    color: #ffffff;
+    pointer-events: none;
+    animation: captcha-shake 0.5s;
+}
+
+.captcha-status {
+    margin-top: 12px;
+    color: #ffffff;
+    font-size: 13px;
+    min-height: 20px;
+    font-weight: 500;
+}
+
+/* 캡차용 흔들림, 로딩 애니메이션 */
+@keyframes captcha-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+.captcha-loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #ffffff;
+    animation: captcha-spin 0.8s linear infinite;
+}
+
+@keyframes captcha-spin {
+    to { transform: rotate(360deg); }
+}
