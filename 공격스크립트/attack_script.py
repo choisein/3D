@@ -35,14 +35,13 @@ USER_AGENTS = [
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
 
     'python-requests/2.31.0',
-    'curl/8.0.1',
-    'Nmap Scripting Engine'
+    'curl/8.0.1'
 ]
 ACCEPT_HEADERS_BY_BROWSER = {
     'chrome': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
     'firefox': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'safari': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'none': None
+    'none' : None
 }
 ALL_ACCEPT_VALUES: List[str] = [
     'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -103,8 +102,7 @@ NORMAL_REFERERS = [
 ]
 NORMAL_SEC_FETCH_SETS = [
     {'site': 'same-origin', 'mode': 'navigate', 'user': '?1', 'dest': 'document'},
-    {'site': 'same-origin', 'mode': 'cors', 'user': '?1', 'dest': 'empty'},
-    {'site': None, 'mode': None, 'user': None, 'dest': None}
+    {'site': 'same-origin', 'mode': 'cors', 'user': '?1', 'dest': 'empty'}
 
 ]
 
@@ -116,8 +114,7 @@ ATTACK_REFERERS = [
     None  # Referer 헤더 없음
 ]
 ATTACK_SEC_FETCH_SETS = [
-    {'site': 'cross-site', 'mode': 'navigate', 'user': '?1', 'dest': 'document'},
-    {'site': 'none', 'mode': 'no-cors', 'user': None, 'dest': 'empty'}  # Sec-Fetch 없는 봇
+    {'site': None, 'mode': None, 'user': None, 'dest': None}  # Sec-Fetch 없는 봇
 ]
 
 
@@ -133,7 +130,7 @@ def get_browser_type_from_ua(ua_string):
     elif 'Safari/' in ua_lower and 'version/' in ua_lower:
         return 'safari'
     else:
-        return 'chrome'
+        return 'none'
 
 
 def get_origin_from_referer(referer_url):
@@ -185,21 +182,24 @@ try:
         ua = random.choice(USER_AGENTS)
         browser_type = get_browser_type_from_ua(ua)
         headers_to_send['User-Agent'] = ua
-        if random.random() < 0.8:
-        # 80% Case: 브라우저 타입에 맞는 Accept 헤더 선택
+        if random.random() < 0.85:
+        # 85% Case: 브라우저 타입에 맞는 Accept 헤더 선택
         headers_to_send['Accept'] = ACCEPT_HEADERS_BY_BROWSER[browser_type]
         else:
-        # 20% Case: 전체 Accept 헤더 목록에서 랜덤 선택
+        # 15% Case: 전체 Accept 헤더 목록에서 랜덤 선택
         headers_to_send['Accept'] = random.choice(ALL_ACCEPT_VALUES)
         
 
-        # 2-3. Referer, Origin, Sec-Fetch (80% 정상, 20% 비정상)
-        if random.random() < 0.8:
-            sec_set = random.choice(NORMAL_SEC_FETCH_SETS)
+        # 2-3. Referer, Origin, Sec-Fetch 
+        if random.random() < 0.9:
             referer = random.choice(NORMAL_REFERERS)
         else:
-            sec_set = random.choice(ATTACK_SEC_FETCH_SETS)
             referer = random.choice(ATTACK_REFERERS)
+
+        if random.randon() < 0.95:
+            sec_set = random.choice(NORMAL_SEC_FETCH_SETS)
+        else:
+            sec_set = random.choice(ATTACK_SEC_FETCH_SETS)
 
         origin = get_origin_from_referer(referer)
 
