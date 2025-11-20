@@ -44,6 +44,12 @@ ACCEPT_HEADERS_BY_BROWSER = {
     'safari': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'none': None
 }
+ALL_ACCEPT_VALUES: List[str] = [
+    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    None
+]
 
 # --- 지역별 IP 및 언어 설정 (악성 IP 카테고리 추가) ---
 LOCATION_DATA = {
@@ -93,8 +99,7 @@ weights = [60, 15, 10, 5, 10]  # (Korea 60%, USA 15%, China 10%, Europe 5%, Mali
 NORMAL_REFERERS = [
     'https://capstone3d.dothome.co.kr/',
     'https://capstone3d.dothome.co.kr/main.php',
-    'https://capstone3d.dothome.co.kr/login.php',
-    'none'
+    'https://capstone3d.dothome.co.kr/login.php'
 ]
 NORMAL_SEC_FETCH_SETS = [
     {'site': 'same-origin', 'mode': 'navigate', 'user': '?1', 'dest': 'document'},
@@ -180,7 +185,13 @@ try:
         ua = random.choice(USER_AGENTS)
         browser_type = get_browser_type_from_ua(ua)
         headers_to_send['User-Agent'] = ua
+        if random.random() < 0.8:
+        # 80% Case: 브라우저 타입에 맞는 Accept 헤더 선택
         headers_to_send['Accept'] = ACCEPT_HEADERS_BY_BROWSER[browser_type]
+        else:
+        # 20% Case: 전체 Accept 헤더 목록에서 랜덤 선택
+        headers_to_send['Accept'] = random.choice(ALL_ACCEPT_VALUES)
+        
 
         # 2-3. Referer, Origin, Sec-Fetch (80% 정상, 20% 비정상)
         if random.random() < 0.8:
