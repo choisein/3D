@@ -1,30 +1,45 @@
-// SecureBank - 인증 기반 접근 제어 JavaScript
+// SecureBank - 인증 기반 접근 제어 JavaScript (무조건 캡차 모드 + PHP 연동)
 
+// ============================================
 // 전역 변수
+// ============================================
 let isLoading = false;
-let isLoggedIn = false; // 로그인 상태 추적
-let currentUser = null; // 현재 로그인한 사용자 정보
+let isLoggedIn = false;
+let currentUser = null;
 
-// 테스트용 사용자 데이터 (실제로는 서버에서 관리)
-const testUsers = [
-    { id: 'admin', password: 'admin123', name: '관리자' },
-    { id: 'user01', password: 'user123', name: '홍길동' }
-];
+// 백엔드 API 엔드포인트 (필요하면 파일명만 바꿔서 사용)
+const LOGIN_API = 'login.php';
+const SIGNUP_API = 'upload.php';   // 회원가입 처리 PHP 파일명에 맞게 수정
+const LOGOUT_API = 'logout.php';
 
+// 캡차 시스템 변수
+let captchaClickCount = 0;
+let captchaInterval = null;
+let captchaStartTime = 0;
+let captchaVerified = false;
+let captchaRequired = false;
+
+
+// ============================================
 // DOM 로드 완료 후 실행
+// ============================================
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
 });
 
+// ============================================
 // 앱 초기화
+// ============================================
 function initializeApp() {
     setupEventListeners();
-    checkLoginStatus(); // 페이지 로드 시 로그인 상태 확인
-    console.log('SecureBank 시스템이 로드되었습니다.');
-    console.log('테스트 계정: admin / admin123');
+    checkLoginStatus();
+    console.log('🚀 SecureBank 시스템이 로드되었습니다.');
+    console.log('⚠️ 무조건 캡차 모드 + PHP 연동');
 }
 
-// 로그인 상태 확인 (페이지 새로고침 시 세션 유지)
+// ============================================
+// 로그인 상태 확인
+// ============================================
 function checkLoginStatus() {
     const savedUser = sessionStorage.getItem('currentUser');
     if (savedUser) {
@@ -34,38 +49,44 @@ function checkLoginStatus() {
     }
 }
 
+// ============================================
 // 로그인된 사용자를 위한 UI 업데이트
+// ============================================
 function updateUIForLoggedInUser() {
     const authButtons = document.querySelector('.auth-buttons');
     if (authButtons && currentUser) {
         authButtons.innerHTML = `
-            <span style="margin-right: 16px; color: var(--text-primary);">
-                ${currentUser.name}님
-            </span>
-            <button class="btn btn-outline" onclick="handleLogout()">로그아웃</button>
+<span style="margin-right: 16px; color: var(--text-primary);">${currentUser.name}님</span>
+<button class="btn btn-outline" onclick="handleLogout()">로그아웃</button>
         `;
     }
 }
 
+// ============================================
 // 로그아웃 처리
+// ============================================
 function handleLogout() {
     isLoggedIn = false;
     currentUser = null;
     sessionStorage.removeItem('currentUser');
     
-    // UI 초기화
     const authButtons = document.querySelector('.auth-buttons');
     if (authButtons) {
         authButtons.innerHTML = `
-            <button class="btn btn-outline" onclick="openModal('loginModal')">로그인</button>
-            <button class="btn btn-primary" onclick="openModal('signupModal')">회원가입</button>
+<button class="btn btn-outline" onclick="openModal('loginModal')">로그인</button>
+<button class="btn btn-primary" onclick="openModal('signupModal')">회원가입</button>
         `;
     }
+    
+    // 백엔드 세션도 종료 시도 (실패해도 무시)
+    fetch(LOGOUT_API, { method: 'POST' }).catch(() => {});
     
     showNotification('로그아웃되었습니다.', 'success');
 }
 
+// ============================================
 // 이벤트 리스너 설정
+// ============================================
 function setupEventListeners() {
     // ESC 키로 모달 닫기
     document.addEventListener('keydown', function(e) {
@@ -77,10 +98,12 @@ function setupEventListeners() {
     // 스크롤 시 헤더 그림자 효과
     window.addEventListener('scroll', function() {
         const header = document.querySelector('.header');
-        if (window.scrollY > 0) {
-            header.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
-        } else {
-            header.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+        if (header) {
+            if (window.scrollY > 0) {
+                header.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+            } else {
+                header.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+            }
         }
     });
 
@@ -116,26 +139,29 @@ function setupEventListeners() {
     // 비밀번호 확인 실시간 검증
     document.addEventListener('input', function(e) {
         if (e.target.id === 'confirmPassword') {
-            const password = document.getElementById('signupPassword').value;
-            const confirmPassword = e.target.value;
-            
-            if (confirmPassword && password !== confirmPassword) {
-                e.target.style.borderColor = 'var(--error-color)';
-            } else {
-                e.target.style.borderColor = 'var(--border-color)';
+            const password = document.getElementById('signupPassword');
+            if (password) {
+                const confirmPassword = e.target.value;
+                
+                if (confirmPassword && password.value !== confirmPassword) {
+                    e.target.style.borderColor = 'var(--error-color)';
+                } else {
+                    e.target.style.borderColor = 'var(--border-color)';
+                }
             }
         }
     });
 }
 
+// ============================================
 // 모달 관리 함수들
+// ============================================
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
         
-        // 첫 번째 입력 필드에 포커스
         const firstInput = modal.querySelector('input');
         if (firstInput) {
             setTimeout(() => firstInput.focus(), 100);
@@ -149,7 +175,12 @@ function closeModal(modalId) {
         modal.classList.remove('active');
         document.body.style.overflow = 'auto';
         
-        // 폼 초기화
+        // 로그인 모달 닫을 때 캡차 초기화
+        if (modalId === 'loginModal') {
+            hideCaptcha();
+            captchaRequired = false;
+        }
+        
         const form = modal.querySelector('form');
         if (form) {
             form.reset();
@@ -164,6 +195,10 @@ function closeAllModals() {
         modal.classList.remove('active');
     });
     document.body.style.overflow = 'auto';
+    
+    // 캡차 초기화
+    hideCaptcha();
+    captchaRequired = false;
 }
 
 function switchModal(fromModalId, toModalId) {
@@ -171,89 +206,284 @@ function switchModal(fromModalId, toModalId) {
     setTimeout(() => openModal(toModalId), 150);
 }
 
-// 로그인 처리
-async function handleLogin(event) {
-    event.preventDefault();
+// ============================================
+// 동적 캡차 시스템
+// ============================================
+
+// 캡차 초기화
+function initCaptcha() {
+    captchaClickCount = 0;
+    captchaVerified = false;
+    captchaStartTime = Date.now();
     
-    if (isLoading) return;
+    const btn = document.getElementById('dynamicCaptchaBtn');
+    const status = document.getElementById('captchaStatus');
     
-    const form = event.target;
-    const formData = new FormData(form);
-    const loginId = formData.get('loginId').trim();
-    const password = formData.get('password');
+    if (btn) {
+        btn.className = 'captcha-button';
+        btn.textContent = 'CHECK';
+        btn.disabled = false;
+        btn.style.background = 'white';
+    }
     
-    // 폼 검증
-    if (!validateLoginForm(loginId, password)) {
+    if (status) {
+        status.innerHTML = '';
+    }
+    
+    console.log('🔄 캡차 초기화 완료');
+}
+
+// 캡차 표시
+function showCaptcha() {
+    const container = document.getElementById('captchaContainer');
+    if (container) {
+        container.style.display = 'block';
+        initCaptcha();
+        setupDynamicCaptcha();
+        console.log('🔒 캡차 표시됨');
+    }
+}
+
+// 캡차 숨기기
+function hideCaptcha() {
+    const container = document.getElementById('captchaContainer');
+    if (container) {
+        container.style.display = 'none';
+    }
+    stopDynamicRendering();
+    console.log('👁️ 캡차 숨김');
+}
+
+// 동적 렌더링 설정
+function setupDynamicCaptcha() {
+    const btn = document.getElementById('dynamicCaptchaBtn');
+    if (!btn) return;
+    
+    // 기존 이벤트 리스너 제거
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    // 클릭 이벤트 설정
+    newBtn.addEventListener('click', handleCaptchaClick);
+    
+    // 10ms 간격으로 버튼 재렌더링 시작
+    startDynamicRendering();
+}
+
+// 동적 렌더링 시작
+function startDynamicRendering() {
+    // 클릭 속도 계산에만 쓰고, 색은 더 이상 바꾸지 않음
+    captchaStartTime = Date.now();
+    if (captchaInterval) {
+        clearInterval(captchaInterval);
+        captchaInterval = null;
+    }
+}
+
+// 동적 렌더링 중지
+function stopDynamicRendering() {
+    if (captchaInterval) {
+        clearInterval(captchaInterval);
+        captchaInterval = null;
+        console.log('⏹️ 동적 렌더링 중지');
+    }
+}
+
+// 캡차 클릭 처리
+function handleCaptchaClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (captchaVerified) return;
+    
+    captchaClickCount++;
+    
+    const clickDuration = Date.now() - captchaStartTime;
+    
+    // 50ms 미만 클릭은 봇으로 판단
+    if (clickDuration < 50) {
+        console.log('❌ 너무 빠른 클릭:', clickDuration + 'ms');
+        captchaFailed();
         return;
     }
     
-    // 로딩 상태 시작
-    setLoadingState(form, true);
+    const status = document.getElementById('captchaStatus');
+    if (status) {
+        status.innerHTML = '본인 확인 중입니다...';
+        status.style.color = '#e5e7eb';
+    }
     
+    // 클릭 횟수 판정
+    if (captchaClickCount < 40) {
+        captchaSuccess();
+    } else {
+        captchaFailed();
+    }
+}
+
+// 캡차 성공
+function captchaSuccess() {
+    captchaVerified = true;
+    stopDynamicRendering();
+    
+    const btn = document.getElementById('dynamicCaptchaBtn');
+    const status = document.getElementById('captchaStatus');
+    
+    if (btn) {
+        btn.className = 'captcha-button verified';
+        btn.textContent = '✓ 확인됨';
+        btn.disabled = true;
+    }
+    
+    if (status) {
+        status.innerHTML = '✓ 캡차 완료';
+        status.style.color = '#10b981';
+    }
+    
+    console.log('✅ 캡차 검증 성공 - 사람으로 판정 (클릭:', captchaClickCount + '회)');
+}
+
+// 캡차 실패
+function captchaFailed() {
+    captchaVerified = false;
+    stopDynamicRendering();
+    
+    const btn = document.getElementById('dynamicCaptchaBtn');
+    const status = document.getElementById('captchaStatus');
+    
+    if (btn) {
+        btn.className = 'captcha-button failed';
+        btn.textContent = '✗ 실패';
+        btn.disabled = true;
+    }
+    
+    if (status) {
+        status.innerHTML = '✗ 봇으로 판정되었습니다';
+        status.style.color = '#ef4444';
+    }
+    
+    console.log('❌ 캡차 검증 실패 - 봇으로 판정 (클릭:', captchaClickCount + '회)');
+    
+    setTimeout(() => {
+        showNotification('자동화된 접근이 감지되었습니다.', 'error');
+        closeModal('loginModal');
+    }, 2000);
+}
+
+
+async function handleLogin(event) {
+    event.preventDefault();
+
+    const form = event.target;
+    const id = document.getElementById("loginId").value.trim();
+    const pw = document.getElementById("loginPassword").value.trim();
+
+    if (!id || !pw) {
+        showNotification("아이디와 비밀번호를 입력하세요.", "error");
+        return;
+    }
+
+    // 캡차 완료 여부 확인
+    if (!captchaVerified) {
+        showCaptcha();
+        showNotification("본인 확인을 완료해주세요.", "warning");
+        return;
+    }
+
+    setLoadingState(form, true);
+
     try {
-        // 로그인 API 호출 시뮬레이션
-        const result = await simulateLogin(loginId, password);
-        
-        if (result.success) {
-            // 로그인 상태 업데이트
-            isLoggedIn = true;
-            currentUser = result.user;
-            
-            // 세션 스토리지에 사용자 정보 저장 (페이지 새로고침 시 유지)
-            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-            
-            showNotification('로그인이 완료되었습니다!', 'success');
-            closeModal('loginModal');
-            
-            // UI 업데이트
-            updateUIForLoggedInUser();
+        const res = await fetch(LOGIN_API, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({
+                loginId: id,
+                password: pw
+            })
+        });
+
+        const data = await res.json();
+
+        if (!data.success) {
+            showNotification(data.message || "로그인에 실패했습니다.", "error");
+            // 캡차 다시 진행하도록 초기화
+            captchaVerified = false;
+            hideCaptcha();
+            return;
         }
-    } catch (error) {
-        showNotification(error.message, 'error');
-        showFieldError(form, 'loginPassword', error.message);
+
+        // 백엔드에서 내려준 이름 사용 (없으면 id 사용)
+        currentUser = {
+            id: data.userId || id,
+            name: data.name || id
+        };
+        isLoggedIn = true;
+
+        sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
+
+        showNotification(`${currentUser.name}님 환영합니다!`, "success");
+        closeModal("loginModal");
+        updateUIForLoggedInUser();
+
+        // 캡차 초기화
+        captchaVerified = false;
+        captchaClickCount = 0;
+        hideCaptcha();
+    } catch (err) {
+        console.error(err);
+        showNotification("서버 오류가 발생했습니다.", "error");
     } finally {
         setLoadingState(form, false);
     }
 }
 
-// 회원가입 처리
+
 async function handleSignup(event) {
     event.preventDefault();
-    
-    if (isLoading) return;
-    
+
     const form = event.target;
     const formData = new FormData(form);
-    
-    // 폼 검증
+
+    // 기존의 validateSignupForm 그대로 활용
     if (!validateSignupForm(form, formData)) {
         return;
     }
-    
-    // 로딩 상태 시작
+
     setLoadingState(form, true);
-    
+
     try {
-        // 회원가입 API 호출 시뮬레이션
-        const result = await simulateSignup(formData);
-        
-        if (result.success) {
-            showNotification('회원가입이 완료되었습니다!', 'success');
-            closeModal('signupModal');
-            
-            setTimeout(() => {
-                openModal('loginModal');
-                showNotification('로그인해주세요.', 'success');
-            }, 1000);
+        const res = await fetch(SIGNUP_API, {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (!data.success) {
+            showNotification(data.message || "회원가입에 실패했습니다.", "error");
+            return;
         }
-    } catch (error) {
-        showNotification(error.message, 'error');
+
+        showNotification("회원가입이 완료되었습니다. 로그인해주세요.", "success");
+        closeModal("signupModal");
+
+        setTimeout(() => {
+            openModal("loginModal");
+        }, 500);
+    } catch (err) {
+        console.error(err);
+        showNotification("서버 오류가 발생했습니다.", "error");
     } finally {
         setLoadingState(form, false);
     }
 }
 
-// 로그인 폼 검증
+
+// ============================================
+// 폼 검증 함수들
+// ============================================
 function validateLoginForm(loginId, password) {
     let isValid = true;
     
@@ -272,68 +502,51 @@ function validateLoginForm(loginId, password) {
 
 // 회원가입 폼 검증
 function validateSignupForm(form, formData) {
-    const signupId = formData.get('signupId').trim();
+    const signupId = formData.get('signupId');
     const password = formData.get('password');
-    const confirmPassword = form.querySelector('#confirmPassword').value;
-    const name = formData.get('name').trim();
-    const phone = formData.get('phone').trim();
-    const email = formData.get('email').trim();
+    const confirmPassword = form.querySelector('#confirmPassword');
+    const name = formData.get('name');
+    const phone = formData.get('phone');
+    const email = formData.get('email');
     const agreeTerms = formData.get('agreeTerms');
+    
+    if (!signupId || !password || !confirmPassword || !name || !phone || !email) {
+        showNotification('모든 필드를 입력해주세요.', 'error');
+        return false;
+    }
     
     let isValid = true;
     
-    // 아이디 검증
-    if (!signupId) {
-        showFieldError(form, 'signupId', '아이디를 입력해주세요.');
-        isValid = false;
-    } else if (!isValidUserId(signupId)) {
+    if (!isValidUserId(String(signupId).trim())) {
         showFieldError(form, 'signupId', '4-20자의 영문, 숫자만 사용 가능합니다.');
         isValid = false;
     }
     
-    // 비밀번호 검증
-    if (!password) {
-        showFieldError(form, 'signupPassword', '비밀번호를 입력해주세요.');
-        isValid = false;
-    } else if (!isValidPassword(password)) {
+    if (!isValidPassword(String(password))) {
         showFieldError(form, 'signupPassword', '8자 이상, 영문+숫자+특수문자를 포함해주세요.');
         isValid = false;
     }
     
-    // 비밀번호 확인
-    if (password !== confirmPassword) {
+    if (String(password) !== String(confirmPassword.value)) {
         showFieldError(form, 'confirmPassword', '비밀번호가 일치하지 않습니다.');
         isValid = false;
     }
     
-    // 이름 검증
-    if (!name) {
-        showFieldError(form, 'name', '이름을 입력해주세요.');
-        isValid = false;
-    } else if (!isValidName(name)) {
+    if (!isValidName(String(name).trim())) {
         showFieldError(form, 'name', '올바른 이름을 입력해주세요.');
         isValid = false;
     }
     
-    // 휴대폰 번호 검증
-    if (!phone) {
-        showFieldError(form, 'phone', '휴대폰 번호를 입력해주세요.');
-        isValid = false;
-    } else if (!isValidPhone(phone)) {
+    if (!isValidPhone(String(phone).trim())) {
         showFieldError(form, 'phone', '올바른 휴대폰 번호를 입력해주세요.');
         isValid = false;
     }
     
-    // 이메일 검증
-    if (!email) {
-        showFieldError(form, 'email', '이메일을 입력해주세요.');
-        isValid = false;
-    } else if (!isValidEmail(email)) {
+    if (!isValidEmail(String(email).trim())) {
         showFieldError(form, 'email', '올바른 이메일 형식을 입력해주세요.');
         isValid = false;
     }
     
-    // 약관 동의 검증
     if (!agreeTerms) {
         showNotification('이용약관에 동의해주세요.', 'error');
         isValid = false;
@@ -368,63 +581,18 @@ function isValidEmail(email) {
     return regex.test(email);
 }
 
-// API 시뮬레이션 함수들
-function simulateLogin(loginId, password) {
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            const user = testUsers.find(u => u.id === loginId && u.password === password);
-            
-            if (user) {
-                resolve({
-                    success: true,
-                    user: { id: user.id, name: user.name }
-                });
-            } else {
-                reject({
-                    message: '아이디 또는 비밀번호가 올바르지 않습니다.'
-                });
-            }
-        }, 1500); // 1.5초 로딩 시뮬레이션
-    });
-}
-
-function simulateSignup(formData) {
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            const signupId = formData.get('signupId');
-            
-            // 아이디 중복 확인
-            const existingUser = testUsers.find(u => u.id === signupId);
-            if (existingUser) {
-                reject({
-                    message: '이미 사용중인 아이디입니다.'
-                });
-                return;
-            }
-            
-            // 새 사용자 추가 (실제로는 서버에서 처리)
-            const newUser = {
-                id: signupId,
-                password: formData.get('password'),
-                name: formData.get('name'),
-                phone: formData.get('phone'),
-                email: formData.get('email')
-            };
-            
-            testUsers.push(newUser);
-            
-            resolve({
-                success: true,
-                message: '회원가입이 완료되었습니다.'
-            });
-        }, 2000); // 2초 로딩 시뮬레이션
-    });
-}
-
+// ============================================
 // UI 헬퍼 함수들
+// ============================================
 function setLoadingState(form, loading) {
     isLoading = loading;
     const submitBtn = form.querySelector('button[type="submit"]');
+    
+    if (!submitBtn) return;
+    
+    if (!submitBtn.dataset.originalText) {
+        submitBtn.dataset.originalText = submitBtn.textContent;
+    }
     
     if (loading) {
         submitBtn.disabled = true;
@@ -443,7 +611,6 @@ function showFieldError(form, fieldName, message) {
         field.style.borderColor = 'var(--error-color)';
         field.style.animation = 'shake 0.5s ease-in-out';
         
-        // 3초 후 에러 스타일 제거
         setTimeout(() => {
             field.style.borderColor = 'var(--border-color)';
             field.style.animation = '';
@@ -464,16 +631,22 @@ function clearFormErrors(form) {
 function showNotification(message, type = 'success') {
     const notification = document.getElementById('notification');
     
+    if (!notification) {
+        alert(message);
+        return;
+    }
+    
     notification.textContent = message;
     notification.className = `notification ${type} show`;
     
-    // 5초 후 알림 숨기기
     setTimeout(() => {
         notification.classList.remove('show');
     }, 5000);
 }
 
+// ============================================
 // 기타 기능들
+// ============================================
 function showFindAccount() {
     closeModal('loginModal');
     showNotification('아이디/비밀번호 찾기 기능은 준비중입니다.', 'warning');
@@ -497,71 +670,47 @@ function showProductDetail(productType) {
 // ============================================
 // 보안 페이지 접근 제어 (인증 필수)
 // ============================================
+let monitoringInterval;
 
-// 보안 페이지 표시 - 로그인 확인 추가
 function showSecurityPage(event) {
     if (event) event.preventDefault();
     
-    // 로그인 상태 확인
     if (!isLoggedIn) {
         showNotification('보안 페이지는 로그인 후 이용하실 수 있습니다.', 'warning');
-        // 로그인 모달 표시
         setTimeout(() => {
             openModal('loginModal');
         }, 500);
-        return; // 미인증 사용자는 여기서 종료
+        return;
     }
     
-    // 로그인된 경우에만 보안 페이지 표시
     const securityPage = document.getElementById('securityPage');
-    securityPage.classList.add('active');
-    document.body.style.overflow = 'hidden';
-    
-    // 보안 데이터 로드
-    loadSecurityData();
-    
-    // 실시간 업데이트 시작
-    startSecurityMonitoring();
+    if (securityPage) {
+        securityPage.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        loadSecurityData();
+        startSecurityMonitoring();
+    }
 }
 
 function hideSecurityPage() {
     const securityPage = document.getElementById('securityPage');
-    securityPage.classList.remove('active');
-    document.body.style.overflow = 'auto';
-    
-    // 모니터링 중지
-    stopSecurityMonitoring();
+    if (securityPage) {
+        securityPage.classList.remove('active');
+        document.body.style.overflow = 'auto';
+        
+        stopSecurityMonitoring();
+    }
 }
 
 // ============================================
-// 보안 데이터 로드 (백엔드 API 연동 부분)
+// 보안 데이터 로드 (시뮬레이션)
 // ============================================
-
-// 보안 데이터 로드 함수 - 백엔드 API와 연동할 부분
 async function loadSecurityData() {
     try {
-        // TODO: 실제 백엔드 API 호출로 대체해야 합니다
-        // 예시:
-        // const response = await fetch('/api/security/threats', {
-        //     method: 'GET',
-        //     headers: {
-        //         'Authorization': `Bearer ${currentUser.token}`,
-        //         'Content-Type': 'application/json'
-        //     }
-        // });
-        // 
-        // if (!response.ok) {
-        //     throw new Error('보안 데이터 로드 실패');
-        // }
-        // 
-        // const data = await response.json();
-        // updateSecurityDashboard(data);
-        
-        // 현재는 시뮬레이션 데이터 표시
         console.log('보안 데이터 로드 완료 (시뮬레이션)');
         console.log('현재 로그인 사용자:', currentUser);
         
-        // 백엔드에서 받아올 데이터 형식 예시
         const mockData = {
             attackCount: 247,
             blockedIPs: 38,
@@ -576,7 +725,6 @@ async function loadSecurityData() {
                     targetAccounts: 127,
                     timestamp: '2024-01-15 14:32'
                 }
-                // ... 더 많은 공격 데이터
             ]
         };
         
@@ -588,9 +736,7 @@ async function loadSecurityData() {
     }
 }
 
-// 보안 대시보드 업데이트 함수
 function updateSecurityDashboard(data) {
-    // 백엔드에서 받아온 데이터로 대시보드 업데이트
     const attackCount = document.getElementById('attackCount');
     const blockedIPs = document.getElementById('blockedIPs');
     const suspiciousCount = document.getElementById('suspiciousCount');
@@ -598,24 +744,13 @@ function updateSecurityDashboard(data) {
     if (attackCount) attackCount.textContent = data.attackCount;
     if (blockedIPs) blockedIPs.textContent = data.blockedIPs;
     if (suspiciousCount) suspiciousCount.textContent = data.suspiciousCount;
-    
-    // TODO: 추가로 최근 공격 목록, 차단된 IP 목록 등을 업데이트
-    // if (data.recentAttacks) {
-    //     updateRecentAttacksList(data.recentAttacks);
-    // }
 }
 
+// ============================================
 // 실시간 보안 모니터링
-let monitoringInterval;
-
+// ============================================
 function startSecurityMonitoring() {
-    // 3초마다 데이터 업데이트
-    // 실제 프로젝트에서는 WebSocket이나 Server-Sent Events 사용 권장
     monitoringInterval = setInterval(() => {
-        // TODO: 실제로는 백엔드 API를 주기적으로 호출
-        // loadSecurityData();
-        
-        // 현재는 시뮬레이션으로 랜덤 업데이트
         const attackCount = document.getElementById('attackCount');
         const blockedIPs = document.getElementById('blockedIPs');
         const suspiciousCount = document.getElementById('suspiciousCount');
@@ -641,85 +776,49 @@ function startSecurityMonitoring() {
 function stopSecurityMonitoring() {
     if (monitoringInterval) {
         clearInterval(monitoringInterval);
+        monitoringInterval = null;
     }
 }
 
-// 개발자 도구에서 사용할 수 있는 전역 함수들
+// ============================================
+// 전역 객체 (개발자 도구용)
+// ============================================
 window.SecureBank = {
     openModal,
     closeModal,
     showNotification,
-    testUsers,
     isLoggedIn: () => isLoggedIn,
     currentUser: () => currentUser,
-    logout: handleLogout
+    logout: handleLogout,
+    captcha: {
+        show: showCaptcha,
+        hide: hideCaptcha,
+        status: () => ({
+            verified: captchaVerified,
+            clickCount: captchaClickCount,
+            required: captchaRequired,
+            startTime: captchaStartTime
+        }),
+        reset: () => {
+            captchaVerified = false;
+            captchaClickCount = 0;
+            captchaRequired = false;
+            hideCaptcha();
+            console.log('🔄 캡차 초기화 완료');
+        },
+        test: () => {
+            openModal('loginModal');
+            showCaptcha();
+            console.log('🧪 캡차 테스트 시작');
+        },
+        botClick: () => {
+            const btn = document.getElementById('dynamicCaptchaBtn');
+            if (btn) {
+                btn.click();
+                console.log('🤖 봇 클릭 시뮬레이션');
+            }
+        }
+    }
 };
 
-console.log("SecureBank 시스템이 로드되었습니다.");
-
-// 로그인 처리
-async function handleLogin(event) {
-  event.preventDefault();
-  const id = document.getElementById("loginId").value.trim();
-  const pw = document.getElementById("loginPassword").value.trim();
-
-  if (!id || !pw) {
-    alert("아이디와 비밀번호를 입력하세요.");
-    return;
-  }
-
-  try {
-    const res = await fetch("backend/login.php", {
-  method: "POST",
-  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  body: `loginId=${encodeURIComponent(id)}&password=${encodeURIComponent(pw)}`
-});
-const data = await res.json();
-alert(data.message);
-if (data.success) closeModal('loginModal');
-
-  } catch (err) {
-    alert("서버 오류가 발생했습니다.");
-    console.error(err);
-  }
-}
-
-// 회원가입 처리
-async function handleSignup(event) {
-  event.preventDefault();
-  const id = document.getElementById("signupId").value.trim();
-  const pw = document.getElementById("signupPassword").value.trim();
-  const confirm = document.getElementById("confirmPassword").value.trim();
-
-  if (!id || !pw) {
-    alert("아이디와 비밀번호를 입력하세요.");
-    return;
-  }
-  if (pw !== confirm) {
-    alert("비밀번호가 일치하지 않습니다.");
-    return;
-  }
-
-  try {
-   const res = await fetch("backend/login.php", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `loginId=${encodeURIComponent(id)}&password=${encodeURIComponent(pw)}`
-    });
-
-    const data = await res.json();
-    alert(data.message);
-    if (data.success) switchModal("signupModal", "loginModal");
-  } catch (err) {
-    alert("서버 오류가 발생했습니다.");
-    console.error(err);
-  }
-}
-
-// 알림 표시
-function showNotification(msg) {
-  const n = document.getElementById('notification');
-  n.innerText = msg;
-  n.classList.add('show');
-  setTimeout(() => n.classList.remove('show'), 3000);
-}
+console.log("✅ SecureBank 시스템 로드 완료 (PHP 연동 & 캡차 활성)");
