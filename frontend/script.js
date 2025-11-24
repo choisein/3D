@@ -19,6 +19,30 @@ let captchaStartTime = 0;
 let captchaVerified = false;
 let captchaRequired = false;
 
+// ===================================================
+// ⭐ 서버 없이 테스트용 Fake DB (localStorage 사용)
+// ===================================================
+
+const FakeDB = {
+    loadUsers() {
+        return JSON.parse(localStorage.getItem("fake_users") || "[]");
+    },
+    saveUsers(users) {
+        localStorage.setItem("fake_users", JSON.stringify(users));
+    },
+    addUser(user) {
+        const users = this.loadUsers();
+        users.push(user);
+        this.saveUsers(users);
+    },
+    findUser(id, pw) {
+        const users = this.loadUsers();
+        return users.find(u => u.id === id && u.password === pw);
+    },
+    exists(id) {
+        return this.loadUsers().some(u => u.id === id);
+    }
+};
 
 // ============================================
 // DOM 로드 완료 후 실행
@@ -254,71 +278,61 @@ function hideCaptcha() {
     console.log('👁️ 캡차 숨김');
 }
 
-// 동적 렌더링 설정
+
+// 함수 교체!!!!!!!!!!!!!!!!!!!!!                        :handleCaptchClick,setupDynamicCaptch, start,stop_DynamicRendering함수 삭제
 function setupDynamicCaptcha() {
     const btn = document.getElementById('dynamicCaptchaBtn');
     if (!btn) return;
     
-    // 기존 이벤트 리스너 제거
+    let clickStartTime = 0;
+    let clickEndTime = 0;
+    
+    // 기존 이벤트 리스너 제거 (중복 방지)
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
     
-    // 클릭 이벤트 설정
-    newBtn.addEventListener('click', handleCaptchaClick);
+    // 1. 마우스 누르기 시작
+    newBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        clickStartTime = Date.now();
+    });
     
-    // 10ms 간격으로 버튼 재렌더링 시작
-    startDynamicRendering();
-}
-
-// 동적 렌더링 시작
-function startDynamicRendering() {
-    // 클릭 속도 계산에만 쓰고, 색은 더 이상 바꾸지 않음
-    captchaStartTime = Date.now();
-    if (captchaInterval) {
-        clearInterval(captchaInterval);
-        captchaInterval = null;
-    }
-}
-
-// 동적 렌더링 중지
-function stopDynamicRendering() {
-    if (captchaInterval) {
-        clearInterval(captchaInterval);
-        captchaInterval = null;
-        console.log('⏹️ 동적 렌더링 중지');
-    }
-}
-
-// 캡차 클릭 처리
-function handleCaptchaClick(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    // 2. 마우스 떼기
+    newBtn.addEventListener('mouseup', (e) => {
+        e.preventDefault();
+        clickEndTime = Date.now();
+    });
     
-    if (captchaVerified) return;
-    
-    captchaClickCount++;
-    
-    const clickDuration = Date.now() - captchaStartTime;
-    
-    // 50ms 미만 클릭은 봇으로 판단
-    if (clickDuration < 50) {
-        console.log('❌ 너무 빠른 클릭:', clickDuration + 'ms');
-        captchaFailed();
-        return;
-    }
-    
-    const status = document.getElementById('captchaStatus');
-    if (status) {
-        status.innerHTML = '본인 확인 중입니다...';
-        status.style.color = '#e5e7eb';
-    }
-    
-    // 클릭 횟수 판정
-    if (captchaClickCount < 40) {
-        captchaSuccess();
-    } else {
-        captchaFailed();
-    }
+    // 3. 클릭 완료 - 최종 검증
+    newBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        if (captchaVerified) return;
+        
+        const clickDuration = clickEndTime - clickStartTime;
+        const reactionTime = clickStartTime - captchaStartTime;
+        
+        console.log(`반응 시간: ${reactionTime}ms, 클릭 지속: ${clickDuration}ms`);
+        
+        // 검증 1: 반응이 너무 빠름 (봇)
+        if (reactionTime < 100) {
+            console.log('❌ 반응 속도가 비정상적');
+            captchaFailed();
+            return;
+        }
+        
+        // 검증 2: 클릭 지속 시간 (핵심!)
+        if (clickDuration < 30) {
+            console.log('❌ 클릭이 너무 짧음 (봇)');
+            captchaFailed();
+        } else if (clickDuration > 30 && clickDuration < 500) {
+            console.log('✅ 정상적인 클릭 (사람)');
+            captchaSuccess();
+        } else {
+            console.log('❌ 클릭이 너무 김 (비정상)');
+            captchaFailed();
+        }
+    });
 }
 
 // 캡차 성공
@@ -371,10 +385,10 @@ function captchaFailed() {
 }
 
 
+// 로그인 처리 (서버 없이 테스트용)
 async function handleLogin(event) {
     event.preventDefault();
 
-    const form = event.target;
     const id = document.getElementById("loginId").value.trim();
     const pw = document.getElementById("loginPassword").value.trim();
 
@@ -383,103 +397,76 @@ async function handleLogin(event) {
         return;
     }
 
-    // 캡차 완료 여부 확인
+    // 캡차 검사
     if (!captchaVerified) {
         showCaptcha();
         showNotification("본인 확인을 완료해주세요.", "warning");
         return;
     }
 
-    setLoadingState(form, true);
+    // FakeDB에서 유저 찾기
+    const user = FakeDB.findUser(id, pw);
 
-    try {
-        const res = await fetch(LOGIN_API, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: new URLSearchParams({
-                loginId: id,
-                password: pw
-            })
-        });
-
-        const data = await res.json();
-
-        if (!data.success) {
-            showNotification(data.message || "로그인에 실패했습니다.", "error");
-            // 캡차 다시 진행하도록 초기화
-            captchaVerified = false;
-            hideCaptcha();
-            return;
-        }
-
-        // 백엔드에서 내려준 이름 사용 (없으면 id 사용)
-        currentUser = {
-            id: data.userId || id,
-            name: data.name || id
-        };
-        isLoggedIn = true;
-
-        sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
-
-        showNotification(`${currentUser.name}님 환영합니다!`, "success");
-        closeModal("loginModal");
-        updateUIForLoggedInUser();
-
-        // 캡차 초기화
+    if (!user) {
+        showNotification("ID 또는 비밀번호가 틀렸습니다.", "error");
         captchaVerified = false;
-        captchaClickCount = 0;
         hideCaptcha();
-    } catch (err) {
-        console.error(err);
-        showNotification("서버 오류가 발생했습니다.", "error");
-    } finally {
-        setLoadingState(form, false);
+        return;
     }
+
+    // ⬇⬇⬇ 여기에서 name을 그대로 사용하도록 수정
+    currentUser = {
+        id: user.id,
+        name: user.name     // ⬅ 닉네임(이름) 표시
+    };
+    isLoggedIn = true;
+
+    sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
+
+    showNotification(`${user.name}님 환영합니다!`, "success");
+    closeModal("loginModal");
+    updateUIForLoggedInUser();
+
+    // 캡차 초기화
+    captchaVerified = false;
+    captchaClickCount = 0;
+    hideCaptcha();
 }
 
 
+// ===================================================
+// ⭐ 서버 없는 환경에서 동작하는 회원가입
+// ===================================================
 async function handleSignup(event) {
     event.preventDefault();
 
     const form = event.target;
     const formData = new FormData(form);
+    
+    const id = formData.get("signupId");
+    const pw = formData.get("password");
+    const name = formData.get("name");
 
-    // 기존의 validateSignupForm 그대로 활용
-    if (!validateSignupForm(form, formData)) {
+    // 중복 체크
+    if (FakeDB.exists(id)) {
+        showNotification("이미 존재하는 ID입니다.", "error");
         return;
     }
 
-    setLoadingState(form, true);
+    // DB에 저장
+    FakeDB.addUser({
+        id: id,
+        password: pw,
+        name: name
+    });
 
-    try {
-        const res = await fetch(SIGNUP_API, {
-            method: "POST",
-            body: formData
-        });
+    showNotification("회원가입 성공(시험용).", "success");
+    closeModal("signupModal");
 
-        const data = await res.json();
-
-        if (!data.success) {
-            showNotification(data.message || "회원가입에 실패했습니다.", "error");
-            return;
-        }
-
-        showNotification("회원가입이 완료되었습니다. 로그인해주세요.", "success");
-        closeModal("signupModal");
-
-        setTimeout(() => {
-            openModal("loginModal");
-        }, 500);
-    } catch (err) {
-        console.error(err);
-        showNotification("서버 오류가 발생했습니다.", "error");
-    } finally {
-        setLoadingState(form, false);
-    }
+    setTimeout(() => {
+        openModal("loginModal");
+    }, 500);
 }
-
 
 // ============================================
 // 폼 검증 함수들
