@@ -1,4 +1,4 @@
-// SecureBank - 인증 기반 접근 제어 JavaScript (무조건 캡차 모드 + PHP 연동)
+// SecureBank - 버튼 클릭 횟수 기반 캡차 시스템
 
 // ============================================
 // 전역 변수
@@ -7,22 +7,22 @@ let isLoading = false;
 let isLoggedIn = false;
 let currentUser = null;
 
-// 백엔드 API 엔드포인트 (필요하면 파일명만 바꿔서 사용)
 const LOGIN_API = 'login.php';
-const SIGNUP_API = 'upload.php';   // 회원가입 처리 PHP 파일명에 맞게 수정
+const SIGNUP_API = 'upload.php';
 const LOGOUT_API = 'logout.php';
 
 // 캡차 시스템 변수
 let captchaClickCount = 0;
-let captchaInterval = null;
-let captchaStartTime = 0;
+let captchaRenderInterval = null;
 let captchaVerified = false;
-let captchaRequired = false;
+
+let mouseMovements = [];
+let isTrackingMouse = false;
+let securityAlerts = [];
 
 // ===================================================
-// ⭐ 서버 없이 테스트용 Fake DB (localStorage 사용)
+// 테스트용 Fake DB (localStorage 사용)
 // ===================================================
-
 const FakeDB = {
     loadUsers() {
         return JSON.parse(localStorage.getItem("fake_users") || "[]");
@@ -49,21 +49,15 @@ const FakeDB = {
 // ============================================
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
+    loadSecurityAlerts();
 });
 
-// ============================================
-// 앱 초기화
-// ============================================
 function initializeApp() {
     setupEventListeners();
     checkLoginStatus();
-    console.log('🚀 SecureBank 시스템이 로드되었습니다.');
-    console.log('⚠️ 무조건 캡차 모드 + PHP 연동');
+    console.log('🚀 SecureBank 시스템 로드 완료');
 }
 
-// ============================================
-// 로그인 상태 확인
-// ============================================
 function checkLoginStatus() {
     const savedUser = sessionStorage.getItem('currentUser');
     if (savedUser) {
@@ -73,22 +67,16 @@ function checkLoginStatus() {
     }
 }
 
-// ============================================
-// 로그인된 사용자를 위한 UI 업데이트
-// ============================================
 function updateUIForLoggedInUser() {
     const authButtons = document.querySelector('.auth-buttons');
     if (authButtons && currentUser) {
         authButtons.innerHTML = `
-<span style="margin-right: 16px; color: var(--text-primary);">${currentUser.name}님</span>
-<button class="btn btn-outline" onclick="handleLogout()">로그아웃</button>
+            <span style="margin-right: 16px; color: var(--text-primary);">${currentUser.name}님</span>
+            <button class="btn btn-outline" onclick="handleLogout()">로그아웃</button>
         `;
     }
 }
 
-// ============================================
-// 로그아웃 처리
-// ============================================
 function handleLogout() {
     isLoggedIn = false;
     currentUser = null;
@@ -97,14 +85,12 @@ function handleLogout() {
     const authButtons = document.querySelector('.auth-buttons');
     if (authButtons) {
         authButtons.innerHTML = `
-<button class="btn btn-outline" onclick="openModal('loginModal')">로그인</button>
-<button class="btn btn-primary" onclick="openModal('signupModal')">회원가입</button>
+            <button class="btn btn-outline" onclick="openModal('loginModal')">로그인</button>
+            <button class="btn btn-primary" onclick="openModal('signupModal')">회원가입</button>
         `;
     }
     
-    // 백엔드 세션도 종료 시도 (실패해도 무시)
     fetch(LOGOUT_API, { method: 'POST' }).catch(() => {});
-    
     showNotification('로그아웃되었습니다.', 'success');
 }
 
@@ -112,14 +98,13 @@ function handleLogout() {
 // 이벤트 리스너 설정
 // ============================================
 function setupEventListeners() {
-    // ESC 키로 모달 닫기
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeAllModals();
+            closeSecurityPanel();
         }
     });
 
-    // 스크롤 시 헤더 그림자 효과
     window.addEventListener('scroll', function() {
         const header = document.querySelector('.header');
         if (header) {
@@ -131,7 +116,6 @@ function setupEventListeners() {
         }
     });
 
-    // 부드러운 스크롤
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function(e) {
             e.preventDefault();
@@ -145,28 +129,23 @@ function setupEventListeners() {
         });
     });
 
-    // 휴대폰 번호 자동 포맷팅
     document.addEventListener('input', function(e) {
         if (e.target.name === 'phone') {
             let value = e.target.value.replace(/\D/g, '');
-            
             if (value.length >= 3 && value.length <= 7) {
                 value = value.replace(/(\d{3})(\d{1,4})/, '$1-$2');
             } else if (value.length >= 8) {
                 value = value.replace(/(\d{3})(\d{4})(\d{1,4})/, '$1-$2-$3');
             }
-            
             e.target.value = value;
         }
     });
 
-    // 비밀번호 확인 실시간 검증
     document.addEventListener('input', function(e) {
         if (e.target.id === 'confirmPassword') {
             const password = document.getElementById('signupPassword');
             if (password) {
                 const confirmPassword = e.target.value;
-                
                 if (confirmPassword && password.value !== confirmPassword) {
                     e.target.style.borderColor = 'var(--error-color)';
                 } else {
@@ -178,7 +157,7 @@ function setupEventListeners() {
 }
 
 // ============================================
-// 모달 관리 함수들
+// 모달 관리
 // ============================================
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -199,10 +178,9 @@ function closeModal(modalId) {
         modal.classList.remove('active');
         document.body.style.overflow = 'auto';
         
-        // 로그인 모달 닫을 때 캡차 초기화
         if (modalId === 'loginModal') {
             hideCaptcha();
-            captchaRequired = false;
+            stopMouseTracking();
         }
         
         const form = modal.querySelector('form');
@@ -219,10 +197,8 @@ function closeAllModals() {
         modal.classList.remove('active');
     });
     document.body.style.overflow = 'auto';
-    
-    // 캡차 초기화
     hideCaptcha();
-    captchaRequired = false;
+    stopMouseTracking();
 }
 
 function switchModal(fromModalId, toModalId) {
@@ -231,14 +207,13 @@ function switchModal(fromModalId, toModalId) {
 }
 
 // ============================================
-// 동적 캡차 시스템
+// 🔥 버튼 클릭 횟수 기반 캡차 시스템
 // ============================================
 
 // 캡차 초기화
 function initCaptcha() {
     captchaClickCount = 0;
     captchaVerified = false;
-    captchaStartTime = Date.now();
     
     const btn = document.getElementById('dynamicCaptchaBtn');
     const status = document.getElementById('captchaStatus');
@@ -247,7 +222,6 @@ function initCaptcha() {
         btn.className = 'captcha-button';
         btn.textContent = 'CHECK';
         btn.disabled = false;
-        btn.style.background = 'white';
     }
     
     if (status) {
@@ -264,6 +238,7 @@ function showCaptcha() {
         container.style.display = 'block';
         initCaptcha();
         setupDynamicCaptcha();
+        startMouseTracking();
         console.log('🔒 캡차 표시됨');
     }
 }
@@ -274,71 +249,141 @@ function hideCaptcha() {
     if (container) {
         container.style.display = 'none';
     }
+    
     stopDynamicRendering();
+    stopMouseTracking();
+    captchaClickCount = 0;
+    captchaVerified = false;
+    mouseMovements = [];
+
     console.log('👁️ 캡차 숨김');
 }
 
-
-// 함수 교체!!!!!!!!!!!!!!!!!!!!!                        :handleCaptchClick,setupDynamicCaptch, start,stop_DynamicRendering함수 삭제
+// 🔥 동적 버튼 재생성 + 클릭 횟수 기록
 function setupDynamicCaptcha() {
+    const wrapper = document.querySelector('.captcha-button-wrapper');
+    if (!wrapper) {
+        console.error('캡차 버튼 wrapper를 찾을 수 없습니다');
+        return;
+    }
+    
+    captchaClickCount = 0;
+    
+    // 10ms마다 버튼 재생성
+    captchaRenderInterval = setInterval(() => {
+        const oldBtn = document.getElementById('dynamicCaptchaBtn');
+        if (oldBtn) oldBtn.remove();
+        
+        const newBtn = document.createElement('button');
+        newBtn.id = 'dynamicCaptchaBtn';
+        newBtn.className = 'captcha-button';
+        newBtn.textContent = 'CHECK';
+        newBtn.type = 'button';
+        
+        // 클릭 이벤트 등록
+        newBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            captchaClickCount++;
+            console.log('클릭 횟수:', captchaClickCount);
+        });
+        
+        // 약간의 위치 변화 (선택사항)
+        const offsetX = Math.random() * 4 - 2;
+        const offsetY = Math.random() * 4 - 2;
+        newBtn.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+        
+        wrapper.appendChild(newBtn);
+        
+    }, 10);  // 10ms마다 실행
+    
+    // 3초 후 자동 검증
+    setTimeout(() => {
+        stopDynamicRendering();
+        verifyCaptcha();
+    }, 3000);
+}
+
+// 동적 렌더링 중지
+function stopDynamicRendering() {
+    if (captchaRenderInterval) {
+        clearInterval(captchaRenderInterval);
+        captchaRenderInterval = null;
+        console.log('⏹️ 동적 렌더링 중지');
+    }
+}
+
+function verifyCaptcha() {
     const btn = document.getElementById('dynamicCaptchaBtn');
-    if (!btn) return;
+    const status = document.getElementById('captchaStatus');
     
-    let clickStartTime = 0;
-    let clickEndTime = 0;
+    console.log('=== 캡차 검증 시작 ===');
+    console.log('총 클릭 횟수:', captchaClickCount);
     
-    // 기존 이벤트 리스너 제거 (중복 방지)
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
+    let suspicionScore = 0;
+    let reasons = [];
     
-    // 1. 마우스 누르기 시작
-    newBtn.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        clickStartTime = Date.now();
-    });
+    // 🔥 수정된 판정 기준
+    if (captchaClickCount === 0) {
+        // ⭐ 0회 = 사람이 클릭 안 함 → 재시도 요청
+        suspicionScore = 50;  // 중간 위험도
+        reasons.push('클릭하지 않음');
+        console.log('⚠️ 클릭하지 않음 (재시도 필요)');
+        captchaRetry();  // 재시도 함수 호출
+        return;
+        
+    } else if (captchaClickCount === 1) {
+        // 1번만 클릭 = 봇 가능성 높음 (정상적으로는 2번 이상 클릭됨)
+        suspicionScore = 80;
+        reasons.push('클릭 1회 (봇 의심');
+        console.log('⚠️ 클릭 1회 (봇 의심)');
+        
+    } else if (captchaClickCount >= 2 && captchaClickCount <= 50) {
+        // 정상 범위
+        suspicionScore = 0;
+        console.log('✅ 정상 클릭 범위 (사람)');
+        
+    } else if (captchaClickCount > 50) {
+        // 너무 많은 클릭 = 자동화 스크립트
+        suspicionScore = 100;
+        reasons.push('클릭 횟수 과다');
+        console.log('❌ 클릭 횟수 과다 (봇 확정)');
+    }
+    // 🔥 마우스 궤적 분석 추가
+    const mouseAnalysis = analyzeMouseMovement();
+    if (mouseAnalysis.isBot) {
+        suspicionScore += mouseAnalysis.score;
+        reasons.push(mouseAnalysis.reason);
+    }
     
-    // 2. 마우스 떼기
-    newBtn.addEventListener('mouseup', (e) => {
-        e.preventDefault();
-        clickEndTime = Date.now();
-    });
+    console.log('최종 의심 점수:', suspicionScore);
+    console.log('판정 이유:', reasons);
     
-    // 3. 클릭 완료 - 최종 검증
-    newBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        
-        if (captchaVerified) return;
-        
-        const clickDuration = clickEndTime - clickStartTime;
-        const reactionTime = clickStartTime - captchaStartTime;
-        
-        console.log(`반응 시간: ${reactionTime}ms, 클릭 지속: ${clickDuration}ms`);
-        
-        // 검증 1: 반응이 너무 빠름 (봇)
-        if (reactionTime < 100) {
-            console.log('❌ 반응 속도가 비정상적');
-            captchaFailed();
-            return;
-        }
-        
-        // 검증 2: 클릭 지속 시간 (핵심!)
-        if (clickDuration < 30) {
-            console.log('❌ 클릭이 너무 짧음 (봇)');
-            captchaFailed();
-        } else if (clickDuration > 30 && clickDuration < 500) {
-            console.log('✅ 정상적인 클릭 (사람)');
-            captchaSuccess();
-        } else {
-            console.log('❌ 클릭이 너무 김 (비정상)');
-            captchaFailed();
-        }
-    });
+
+    // 최종 판단
+    if (suspicionScore >= 80) {
+        captchaFailed(reasons.join(', '));  // 🔥 파라미터 추가
+    } else {
+        captchaSuccess();
+    }
+}
+
+// 🔥 재시도 함수 추가
+function captchaRetry() {
+    const status = document.getElementById('captchaStatus');
+    
+    if (status) {
+        status.innerHTML = '⚠️ 버튼을 클릭해주세요!';
+        status.style.color = '#d97706';
+    }
+    
+    setupDynamicCaptcha();
+    console.log('⏱️ 3초 연장 - 재시도');
 }
 
 // 캡차 성공
 function captchaSuccess() {
     captchaVerified = true;
-    stopDynamicRendering();
     
     const btn = document.getElementById('dynamicCaptchaBtn');
     const status = document.getElementById('captchaStatus');
@@ -347,6 +392,7 @@ function captchaSuccess() {
         btn.className = 'captcha-button verified';
         btn.textContent = '✓ 확인됨';
         btn.disabled = true;
+        btn.style.transform = 'none';
     }
     
     if (status) {
@@ -354,13 +400,14 @@ function captchaSuccess() {
         status.style.color = '#10b981';
     }
     
-    console.log('✅ 캡차 검증 성공 - 사람으로 판정 (클릭:', captchaClickCount + '회)');
+    console.log(`✅ 캡차 검증 성공 (클릭: ${captchaClickCount}회)`);
 }
 
 // 캡차 실패
-function captchaFailed() {
+function captchaFailed(reason = '봇으로 판정') {  // 🔥 파라미터 추가
     captchaVerified = false;
     stopDynamicRendering();
+    stopMouseTracking();  // 🔥 추가
     
     const btn = document.getElementById('dynamicCaptchaBtn');
     const status = document.getElementById('captchaStatus');
@@ -372,11 +419,24 @@ function captchaFailed() {
     }
     
     if (status) {
-        status.innerHTML = '✗ 봇으로 판정되었습니다';
+        status.innerHTML = `✗ ${reason}`;  // 🔥 수정
         status.style.color = '#ef4444';
     }
     
-    console.log('❌ 캡차 검증 실패 - 봇으로 판정 (클릭:', captchaClickCount + '회)');
+    console.log(`❌ 캡차 검증 실패: ${reason}`);
+    
+    // 🔥 보안 이슈 기록 추가
+    addSecurityAlert({
+        type: 'critical',
+        title: '봇 접근 탐지',
+        description: `자동화된 로그인 시도가 차단되었습니다.`,
+        details: {
+            판정이유: reason,
+            클릭횟수: `${captchaClickCount}회`,
+            마우스포인트: `${mouseMovements.length}개`,
+            시간: new Date().toLocaleTimeString('ko-KR')
+        }
+    });
     
     setTimeout(() => {
         showNotification('자동화된 접근이 감지되었습니다.', 'error');
@@ -384,8 +444,99 @@ function captchaFailed() {
     }, 2000);
 }
 
+// ============================================
+// 🔥 보안 알림 시스템 (전체 추가)
+// ============================================
 
-// 로그인 처리 (서버 없이 테스트용)
+function addSecurityAlert(alert) {
+    const alertData = {
+        id: Date.now(),
+        type: alert.type || 'info',
+        title: alert.title,
+        description: alert.description,
+        details: alert.details || {},
+        timestamp: new Date().toISOString()
+    };
+    
+    securityAlerts.unshift(alertData);
+    if (securityAlerts.length > 50) {
+        securityAlerts = securityAlerts.slice(0, 50);
+    }
+    
+    localStorage.setItem('securityAlerts', JSON.stringify(securityAlerts));
+    renderSecurityAlert(alertData);
+    openSecurityPanel();
+    
+    console.log('🔔 보안 알림 추가:', alertData);
+}
+
+function renderSecurityAlert(alert) {
+    const list = document.getElementById('securityAlertList');
+    if (!list) return;
+    
+    const alertItem = document.createElement('div');
+    alertItem.className = `security-alert-item ${alert.type}`;
+    alertItem.dataset.id = alert.id;
+    
+    const time = new Date(alert.timestamp);
+    const timeStr = `${time.getHours()}:${String(time.getMinutes()).padStart(2, '0')}`;
+    
+    let detailsHTML = '';
+    if (alert.details && Object.keys(alert.details).length > 0) {
+        detailsHTML = '<div class="alert-item-details">';
+        for (const [key, value] of Object.entries(alert.details)) {
+            detailsHTML += `
+                <div class="alert-detail-badge">
+                    ${key}: <strong>${value}</strong>
+                </div>
+            `;
+        }
+        detailsHTML += '</div>';
+    }
+    
+    alertItem.innerHTML = `
+        <div class="alert-item-header">
+            <div class="alert-item-title">${alert.title}</div>
+            <div class="alert-item-time">${timeStr}</div>
+        </div>
+        <div class="alert-item-description">${alert.description}</div>
+        ${detailsHTML}
+    `;
+    
+    list.insertBefore(alertItem, list.firstChild);
+}
+
+function loadSecurityAlerts() {
+    const stored = localStorage.getItem('securityAlerts');
+    if (stored) {
+        securityAlerts = JSON.parse(stored);
+        const recentAlerts = securityAlerts.slice(0, 10);
+        recentAlerts.reverse().forEach(alert => {
+            renderSecurityAlert(alert);
+        });
+        console.log(`📋 ${securityAlerts.length}개의 보안 알림 로드됨`);
+    }
+}
+
+function openSecurityPanel() {
+    const panel = document.getElementById('securityAlertPanel');
+    if (panel) {
+        panel.classList.add('active');
+        console.log('🔔 보안 알림 패널 열림');
+    }
+}
+
+function closeSecurityPanel() {
+    const panel = document.getElementById('securityAlertPanel');
+    if (panel) {
+        panel.classList.remove('active');
+        console.log('🔔 보안 알림 패널 닫힘');
+    }
+}
+
+// ============================================
+// 로그인 처리
+// ============================================
 async function handleLogin(event) {
     event.preventDefault();
 
@@ -397,46 +548,64 @@ async function handleLogin(event) {
         return;
     }
 
-    // 캡차 검사
     if (!captchaVerified) {
         showCaptcha();
         showNotification("본인 확인을 완료해주세요.", "warning");
         return;
     }
 
-    // FakeDB에서 유저 찾기
     const user = FakeDB.findUser(id, pw);
 
     if (!user) {
         showNotification("ID 또는 비밀번호가 틀렸습니다.", "error");
         captchaVerified = false;
         hideCaptcha();
+        
+        // 🔥 로그인 실패 알림 추가
+        addSecurityAlert({
+            type: 'warning',
+            title: '로그인 실패',
+            description: `존재하지 않는 계정으로 로그인 시도`,
+            details: {
+                시도ID: id,
+                시간: new Date().toLocaleTimeString('ko-KR')
+            }
+        });
+        
         return;
     }
 
-    // ⬇⬇⬇ 여기에서 name을 그대로 사용하도록 수정
     currentUser = {
         id: user.id,
-        name: user.name     // ⬅ 닉네임(이름) 표시
+        name: user.name
     };
     isLoggedIn = true;
 
     sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
 
+    // 🔥 성공 알림 추가
+    addSecurityAlert({
+        type: 'info',
+        title: '로그인 성공',
+        description: `${user.name}님이 로그인했습니다.`,
+        details: {
+            계정: user.id,
+            시간: new Date().toLocaleTimeString('ko-KR')
+        }
+    });
+
     showNotification(`${user.name}님 환영합니다!`, "success");
     closeModal("loginModal");
     updateUIForLoggedInUser();
 
-    // 캡차 초기화
     captchaVerified = false;
     captchaClickCount = 0;
     hideCaptcha();
 }
 
-
-// ===================================================
-// ⭐ 서버 없는 환경에서 동작하는 회원가입
-// ===================================================
+// ============================================
+// 회원가입 처리
+// ============================================
 async function handleSignup(event) {
     event.preventDefault();
 
@@ -447,20 +616,18 @@ async function handleSignup(event) {
     const pw = formData.get("password");
     const name = formData.get("name");
 
-    // 중복 체크
     if (FakeDB.exists(id)) {
         showNotification("이미 존재하는 ID입니다.", "error");
         return;
     }
 
-    // DB에 저장
     FakeDB.addUser({
         id: id,
         password: pw,
         name: name
     });
 
-    showNotification("회원가입 성공(시험용).", "success");
+    showNotification("회원가입 성공.", "success");
     closeModal("signupModal");
 
     setTimeout(() => {
@@ -469,144 +636,8 @@ async function handleSignup(event) {
 }
 
 // ============================================
-// 폼 검증 함수들
-// ============================================
-function validateLoginForm(loginId, password) {
-    let isValid = true;
-    
-    if (!loginId) {
-        showNotification('아이디를 입력해주세요.', 'error');
-        isValid = false;
-    }
-    
-    if (!password) {
-        showNotification('비밀번호를 입력해주세요.', 'error');
-        isValid = false;
-    }
-    
-    return isValid;
-}
-
-// 회원가입 폼 검증
-function validateSignupForm(form, formData) {
-    const signupId = formData.get('signupId');
-    const password = formData.get('password');
-    const confirmPassword = form.querySelector('#confirmPassword');
-    const name = formData.get('name');
-    const phone = formData.get('phone');
-    const email = formData.get('email');
-    const agreeTerms = formData.get('agreeTerms');
-    
-    if (!signupId || !password || !confirmPassword || !name || !phone || !email) {
-        showNotification('모든 필드를 입력해주세요.', 'error');
-        return false;
-    }
-    
-    let isValid = true;
-    
-    if (!isValidUserId(String(signupId).trim())) {
-        showFieldError(form, 'signupId', '4-20자의 영문, 숫자만 사용 가능합니다.');
-        isValid = false;
-    }
-    
-    if (!isValidPassword(String(password))) {
-        showFieldError(form, 'signupPassword', '8자 이상, 영문+숫자+특수문자를 포함해주세요.');
-        isValid = false;
-    }
-    
-    if (String(password) !== String(confirmPassword.value)) {
-        showFieldError(form, 'confirmPassword', '비밀번호가 일치하지 않습니다.');
-        isValid = false;
-    }
-    
-    if (!isValidName(String(name).trim())) {
-        showFieldError(form, 'name', '올바른 이름을 입력해주세요.');
-        isValid = false;
-    }
-    
-    if (!isValidPhone(String(phone).trim())) {
-        showFieldError(form, 'phone', '올바른 휴대폰 번호를 입력해주세요.');
-        isValid = false;
-    }
-    
-    if (!isValidEmail(String(email).trim())) {
-        showFieldError(form, 'email', '올바른 이메일 형식을 입력해주세요.');
-        isValid = false;
-    }
-    
-    if (!agreeTerms) {
-        showNotification('이용약관에 동의해주세요.', 'error');
-        isValid = false;
-    }
-    
-    return isValid;
-}
-
-// 유효성 검사 함수들
-function isValidUserId(id) {
-    const regex = /^[a-zA-Z0-9]{4,20}$/;
-    return regex.test(id);
-}
-
-function isValidPassword(password) {
-    const regex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    return regex.test(password);
-}
-
-function isValidName(name) {
-    const regex = /^[가-힣a-zA-Z\s]{2,10}$/;
-    return regex.test(name);
-}
-
-function isValidPhone(phone) {
-    const regex = /^010-\d{4}-\d{4}$/;
-    return regex.test(phone);
-}
-
-function isValidEmail(email) {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return regex.test(email);
-}
-
-// ============================================
 // UI 헬퍼 함수들
 // ============================================
-function setLoadingState(form, loading) {
-    isLoading = loading;
-    const submitBtn = form.querySelector('button[type="submit"]');
-    
-    if (!submitBtn) return;
-    
-    if (!submitBtn.dataset.originalText) {
-        submitBtn.dataset.originalText = submitBtn.textContent;
-    }
-    
-    if (loading) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = '처리중...';
-        submitBtn.style.opacity = '0.7';
-    } else {
-        submitBtn.disabled = false;
-        submitBtn.textContent = submitBtn.dataset.originalText || (form.id === 'loginForm' ? '로그인' : '회원가입');
-        submitBtn.style.opacity = '1';
-    }
-}
-
-function showFieldError(form, fieldName, message) {
-    const field = form.querySelector(`[name="${fieldName}"]`);
-    if (field) {
-        field.style.borderColor = 'var(--error-color)';
-        field.style.animation = 'shake 0.5s ease-in-out';
-        
-        setTimeout(() => {
-            field.style.borderColor = 'var(--border-color)';
-            field.style.animation = '';
-        }, 3000);
-    }
-    
-    showNotification(message, 'error');
-}
-
 function clearFormErrors(form) {
     const fields = form.querySelectorAll('input');
     fields.forEach(field => {
@@ -632,7 +663,7 @@ function showNotification(message, type = 'success') {
 }
 
 // ============================================
-// 기타 기능들
+// 기타 기능
 // ============================================
 function showFindAccount() {
     closeModal('loginModal');
@@ -654,9 +685,7 @@ function showProductDetail(productType) {
     showNotification(`${productName} 상세 페이지로 이동합니다.`, 'success');
 }
 
-// ============================================
-// 보안 페이지 접근 제어 (인증 필수)
-// ============================================
+// 보안 페이지
 let monitoringInterval;
 
 function showSecurityPage(event) {
@@ -690,29 +719,16 @@ function hideSecurityPage() {
     }
 }
 
-// ============================================
-// 보안 데이터 로드 (시뮬레이션)
-// ============================================
 async function loadSecurityData() {
     try {
-        console.log('보안 데이터 로드 완료 (시뮬레이션)');
+        console.log('보안 데이터 로드 완료');
         console.log('현재 로그인 사용자:', currentUser);
         
         const mockData = {
             attackCount: 247,
             blockedIPs: 38,
             defenseRate: 99.8,
-            suspiciousCount: 15,
-            recentAttacks: [
-                {
-                    type: '크리덴셜 스터핑',
-                    severity: 'critical',
-                    ipCount: 38,
-                    attemptCount: 523,
-                    targetAccounts: 127,
-                    timestamp: '2024-01-15 14:32'
-                }
-            ]
+            suspiciousCount: 15
         };
         
         updateSecurityDashboard(mockData);
@@ -733,9 +749,6 @@ function updateSecurityDashboard(data) {
     if (suspiciousCount) suspiciousCount.textContent = data.suspiciousCount;
 }
 
-// ============================================
-// 실시간 보안 모니터링
-// ============================================
 function startSecurityMonitoring() {
     monitoringInterval = setInterval(() => {
         const attackCount = document.getElementById('attackCount');
@@ -767,45 +780,125 @@ function stopSecurityMonitoring() {
     }
 }
 
+
+
 // ============================================
-// 전역 객체 (개발자 도구용)
+// 🔥 마우스 궤적 추적 시스템 (전체 추가)
 // ============================================
-window.SecureBank = {
-    openModal,
-    closeModal,
-    showNotification,
-    isLoggedIn: () => isLoggedIn,
-    currentUser: () => currentUser,
-    logout: handleLogout,
-    captcha: {
-        show: showCaptcha,
-        hide: hideCaptcha,
-        status: () => ({
-            verified: captchaVerified,
-            clickCount: captchaClickCount,
-            required: captchaRequired,
-            startTime: captchaStartTime
-        }),
-        reset: () => {
-            captchaVerified = false;
-            captchaClickCount = 0;
-            captchaRequired = false;
-            hideCaptcha();
-            console.log('🔄 캡차 초기화 완료');
-        },
-        test: () => {
-            openModal('loginModal');
-            showCaptcha();
-            console.log('🧪 캡차 테스트 시작');
-        },
-        botClick: () => {
-            const btn = document.getElementById('dynamicCaptchaBtn');
-            if (btn) {
-                btn.click();
-                console.log('🤖 봇 클릭 시뮬레이션');
-            }
+
+function startMouseTracking() {
+    mouseMovements = [];
+    isTrackingMouse = true;
+    
+    const captchaContainer = document.getElementById('captchaContainer');
+    if (!captchaContainer) return;
+    
+    const trackMouse = (e) => {
+        if (!isTrackingMouse) return;
+        
+        const rect = captchaContainer.getBoundingClientRect();
+        mouseMovements.push({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+            timestamp: Date.now()
+        });
+        
+        if (mouseMovements.length > 100) {
+            mouseMovements.shift();
+        }
+    };
+    
+    captchaContainer.addEventListener('mousemove', trackMouse);
+    captchaContainer._mouseTracker = trackMouse;
+    
+    console.log('🖱️ 마우스 추적 시작');
+}
+
+function stopMouseTracking() {
+    isTrackingMouse = false;
+    
+    const captchaContainer = document.getElementById('captchaContainer');
+    if (captchaContainer && captchaContainer._mouseTracker) {
+        captchaContainer.removeEventListener('mousemove', captchaContainer._mouseTracker);
+        delete captchaContainer._mouseTracker;
+    }
+    
+    console.log('🖱️ 마우스 추적 중지');
+}
+
+function analyzeMouseMovement() {
+    if (mouseMovements.length < 5) {
+        return {
+            isBot: false,
+            score: 0,
+            reason: '마우스 데이터 부족'
+        };
+    }
+    
+    // 직선성 검사
+    let totalDistance = 0;
+    let directDistance = 0;
+    
+    for (let i = 1; i < mouseMovements.length; i++) {
+        const dx = mouseMovements[i].x - mouseMovements[i-1].x;
+        const dy = mouseMovements[i].y - mouseMovements[i-1].y;
+        totalDistance += Math.sqrt(dx*dx + dy*dy);
+    }
+    
+    if (mouseMovements.length > 1) {
+        const first = mouseMovements[0];
+        const last = mouseMovements[mouseMovements.length - 1];
+        const dx = last.x - first.x;
+        const dy = last.y - first.y;
+        directDistance = Math.sqrt(dx*dx + dy*dy);
+    }
+    
+    const linearity = totalDistance > 0 ? directDistance / totalDistance : 0;
+    
+    // 속도 분석
+    const speeds = [];
+    for (let i = 1; i < mouseMovements.length; i++) {
+        const dx = mouseMovements[i].x - mouseMovements[i-1].x;
+        const dy = mouseMovements[i].y - mouseMovements[i-1].y;
+        const dt = mouseMovements[i].timestamp - mouseMovements[i-1].timestamp;
+        if (dt > 0) {
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            speeds.push(distance / dt);
         }
     }
-};
+    
+    const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+    const variance = speeds.reduce((sum, speed) => sum + Math.pow(speed - avgSpeed, 2), 0) / speeds.length;
+    const stdDev = Math.sqrt(variance);
+    
+    let suspicionScore = 0;
+    let reasons = [];
+    
+    if (linearity > 0.9) {
+        suspicionScore += 30;
+        reasons.push('직선 이동 패턴');
+    }
+    
+    if (stdDev < 0.1 && avgSpeed > 0) {
+        suspicionScore += 30;
+        reasons.push('일정한 속도');
+    }
+    
+    console.log('🖱️ 마우스 분석:', {
+        직선성: linearity.toFixed(3),
+        평균속도: avgSpeed.toFixed(3),
+        속도편차: stdDev.toFixed(3),
+        의심점수: suspicionScore
+    });
+    
+    return {
+        isBot: suspicionScore >= 50,
+        score: suspicionScore,
+        reason: reasons.join(', ') || '정상 패턴'
+    };
+}
 
-console.log("✅ SecureBank 시스템 로드 완료 (PHP 연동 & 캡차 활성)");
+
+
+
+console.log("✅ SecureBank 시스템 로드 완료 (캡차 + 보안알림 + 마우스추적)");
