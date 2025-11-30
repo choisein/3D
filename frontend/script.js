@@ -20,29 +20,6 @@ let mouseMovements = [];
 let isTrackingMouse = false;
 let securityAlerts = [];
 
-// ===================================================
-// 테스트용 Fake DB (localStorage 사용)
-// ===================================================
-const FakeDB = {
-    loadUsers() {
-        return JSON.parse(localStorage.getItem("fake_users") || "[]");
-    },
-    saveUsers(users) {
-        localStorage.setItem("fake_users", JSON.stringify(users));
-    },
-    addUser(user) {
-        const users = this.loadUsers();
-        users.push(user);
-        this.saveUsers(users);
-    },
-    findUser(id, pw) {
-        const users = this.loadUsers();
-        return users.find(u => u.id === id && u.password === pw);
-    },
-    exists(id) {
-        return this.loadUsers().some(u => u.id === id);
-    }
-};
 
 // ============================================
 // DOM 로드 완료 후 실행
@@ -540,6 +517,7 @@ function closeSecurityPanel() {
 async function handleLogin(event) {
     event.preventDefault();
 
+    const form = event.target;
     const id = document.getElementById("loginId").value.trim();
     const pw = document.getElementById("loginPassword").value.trim();
 
@@ -548,59 +526,126 @@ async function handleLogin(event) {
         return;
     }
 
-    if (!captchaVerified) {
-        showCaptcha();
-        showNotification("본인 확인을 완료해주세요.", "warning");
-        return;
-    }
+    setLoadingState(form, true);
 
-    const user = FakeDB.findUser(id, pw);
+    try {
+        // FormData 생성
+        const formData = new FormData();
+        formData.append('loginId', id);
+        formData.append('password', pw);
+        formData.append('captchaVerified', captchaVerified ? 'true' : 'false');
 
-    if (!user) {
-        showNotification("ID 또는 비밀번호가 틀렸습니다.", "error");
-        captchaVerified = false;
-        hideCaptcha();
-        
-        // 🔥 로그인 실패 알림 추가
+        // 백엔드로 요청
+        const res = await fetch('/3D/backend/login.php', {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await res.json();
+
+        // Case 1: 캡차 필요
+        if (data.needCaptcha) {
+            showNotification(data.message, "warning");
+            showCaptcha();
+            
+            // 보안 알림 추가
+            addSecurityAlert({
+                type: 'warning',
+                title: '의심스러운 활동 감지',
+                description: data.message,
+                details: {
+                    '위험점수': data.riskScore + '점',
+                    '이유': data.reasons ? data.reasons.join(', ') : '-',
+                    '시간': new Date().toLocaleTimeString('ko-KR')
+                }
+            });
+            
+            setLoadingState(form, false);
+            return;
+        }
+
+        // Case 2: 차단됨
+        if (data.blocked) {
+            showNotification(data.message, "error");
+            
+            addSecurityAlert({
+                type: 'critical',
+                title: '로그인 차단',
+                description: data.message,
+                details: {
+                    '위험점수': data.riskScore + '점',
+                    '이유': data.reasons ? data.reasons.join(', ') : '-',
+                    '시간': new Date().toLocaleTimeString('ko-KR')
+                }
+            });
+            
+            closeModal("loginModal");
+            setLoadingState(form, false);
+            return;
+        }
+
+        // Case 3: 로그인 실패
+        if (!data.success) {
+            showNotification(data.message || "로그인에 실패했습니다.", "error");
+            
+            // 캡차 리셋
+            captchaVerified = false;
+            hideCaptcha();
+            
+            // 보안 알림 추가
+            addSecurityAlert({
+                type: 'warning',
+                title: '로그인 실패',
+                description: '존재하지 않는 계정으로 로그인 시도',
+                details: {
+                    '시도ID': id,
+                    '위험점수': data.riskScore + '점',
+                    '시간': new Date().toLocaleTimeString('ko-KR')
+                }
+            });
+            
+            setLoadingState(form, false);
+            return;
+        }
+
+        // Case 4: 로그인 성공
+        currentUser = {
+            id: data.id || id,
+            name: data.name || id,
+            usernum: data.usernum
+        };
+        isLoggedIn = true;
+
+        sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
+
+        // 성공 알림
         addSecurityAlert({
-            type: 'warning',
-            title: '로그인 실패',
-            description: `존재하지 않는 계정으로 로그인 시도`,
+            type: 'info',
+            title: '로그인 성공',
+            description: `${currentUser.name}님이 로그인했습니다.`,
             details: {
-                시도ID: id,
-                시간: new Date().toLocaleTimeString('ko-KR')
+                '계정': currentUser.id,
+                '위치': data.location || 'Unknown',
+                '위험점수': data.riskScore + '점',
+                '시간': new Date().toLocaleTimeString('ko-KR')
             }
         });
-        
-        return;
+
+        showNotification(`${currentUser.name}님 환영합니다!`, "success");
+        closeModal("loginModal");
+        updateUIForLoggedInUser();
+
+        // 캡차 리셋
+        captchaVerified = false;
+        captchaClickCount = 0;
+        hideCaptcha();
+
+    } catch (err) {
+        console.error('로그인 오류:', err);
+        showNotification("서버 오류가 발생했습니다.", "error");
+    } finally {
+        setLoadingState(form, false);
     }
-
-    currentUser = {
-        id: user.id,
-        name: user.name
-    };
-    isLoggedIn = true;
-
-    sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
-
-    // 🔥 성공 알림 추가
-    addSecurityAlert({
-        type: 'info',
-        title: '로그인 성공',
-        description: `${user.name}님이 로그인했습니다.`,
-        details: {
-            계정: user.id,
-            시간: new Date().toLocaleTimeString('ko-KR')
-        }
-    });
-
-    showNotification(`${user.name}님 환영합니다!`, "success");
-    closeModal("loginModal");
-    updateUIForLoggedInUser();
-
-    captchaVerified = false;
-    captchaClickCount = 0;
-    hideCaptcha();
 }
 
 // ============================================
