@@ -207,6 +207,8 @@
                             <button type="button" id="dynamicCaptchaBtn" class="captcha-button">CHECK</button>
                         </div>
                         <div id="captchaStatus" class="captcha-status"></div>
+
+                        <canvas id="mouseTrackCanvas" style="display: none;"></canvas>
                     </div>
                     <!-- 캡차 컨테이너 끝 -->
 
@@ -286,6 +288,23 @@
 
     <!-- 알림 메시지 -->
     <div id="notification" class="notification"></div>
+
+
+    <div id="securityAlertPanel" class="security-alert-panel">
+        <div class="security-alert-header">
+            <h3>🔔 보안 알림</h3>
+            <button class="close-panel-btn" onclick="closeSecurityPanel()">&times;</button>
+        </div>
+        <div id="securityAlertList" class="security-alert-list">
+            <!-- 동적으로 알림이 추가됨 -->
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    </body>
+    </html>
+
+
 
     <!-- 보안이슈 전체 페이지 -->
     <div id="securityPage" class="security-page">
