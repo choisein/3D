@@ -1,1 +1,3 @@
-
+connect,login,logout,dashboard,upload,test_login.php는 수정 후 그대로 사용하고 
+loginprocess,test_verify.phpsms 각각 login.php에 통합시키고 프론트엔드 캡차로 대체함
+또한 update_database.php파일을 추가함
