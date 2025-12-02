@@ -300,46 +300,41 @@ function verifyCaptcha() {
     let suspicionScore = 0;
     let reasons = [];
     
-    // 🔥 수정된 판정 기준
     if (captchaClickCount === 0) {
-        // ⭐ 0회 = 사람이 클릭 안 함 → 재시도 요청
-        suspicionScore = 50;  // 중간 위험도
+        suspicionScore = 50;
         reasons.push('클릭하지 않음');
         console.log('⚠️ 클릭하지 않음 (재시도 필요)');
-        captchaRetry();  // 재시도 함수 호출
+        captchaRetry();
         return;
         
     } else if (captchaClickCount === 1) {
-        // 1번만 클릭 = 봇 가능성 높음 (정상적으로는 2번 이상 클릭됨)
         suspicionScore = 80;
-        reasons.push('클릭 1회 (봇 의심');
+        reasons.push('클릭 1회');
         console.log('⚠️ 클릭 1회 (봇 의심)');
         
     } else if (captchaClickCount >= 2 && captchaClickCount <= 50) {
-        // 정상 범위
         suspicionScore = 0;
         console.log('✅ 정상 클릭 범위 (사람)');
         
     } else if (captchaClickCount > 50) {
-        // 너무 많은 클릭 = 자동화 스크립트
         suspicionScore = 100;
         reasons.push('클릭 횟수 과다');
         console.log('❌ 클릭 횟수 과다 (봇 확정)');
     }
-    // 🔥 마우스 궤적 분석 추가
+    
     const mouseAnalysis = analyzeMouseMovement();
     if (mouseAnalysis.isBot) {
         suspicionScore += mouseAnalysis.score;
         reasons.push(mouseAnalysis.reason);
     }
     
+    // ✅ 콘솔에만 자세한 정보 출력
     console.log('최종 의심 점수:', suspicionScore);
     console.log('판정 이유:', reasons);
     
-
-    // 최종 판단
     if (suspicionScore >= 80) {
-        captchaFailed(reasons.join(', '));  // 🔥 파라미터 추가
+        // ❌ 사용자에게 구체적인 이유 전달하지 않음
+        captchaFailed('보안 검증 실패');
     } else {
         captchaSuccess();
     }
@@ -350,7 +345,8 @@ function captchaRetry() {
     const status = document.getElementById('captchaStatus');
     
     if (status) {
-        status.innerHTML = '⚠️ 버튼을 클릭해주세요!';
+        // ✅ 간단한 안내만 표시
+        status.innerHTML = '⚠️ 버튼을 클릭해주세요';
         status.style.color = '#d97706';
     }
     
@@ -361,6 +357,7 @@ function captchaRetry() {
 // 캡차 성공
 function captchaSuccess() {
     captchaVerified = true;
+    stopDynamicRendering();
     
     const btn = document.getElementById('dynamicCaptchaBtn');
     const status = document.getElementById('captchaStatus');
@@ -369,22 +366,33 @@ function captchaSuccess() {
         btn.className = 'captcha-button verified';
         btn.textContent = '✓ 확인됨';
         btn.disabled = true;
-        btn.style.transform = 'none';
     }
     
     if (status) {
-        status.innerHTML = '✓ 캡차 완료';
+        status.innerHTML = '✓ 캡차 완료 - 로그인 중...';
         status.style.color = '#10b981';
     }
     
     console.log(`✅ 캡차 검증 성공 (클릭: ${captchaClickCount}회)`);
+    
+    // ✅ 1초 후 자동으로 로그인 폼 제출
+    setTimeout(() => {
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            // 폼의 submit 이벤트 트리거
+            loginForm.dispatchEvent(new Event('submit', { 
+                cancelable: true, 
+                bubbles: true 
+            }));
+        }
+    }, 1000);
 }
 
 // 캡차 실패
-function captchaFailed(reason = '봇으로 판정') {  // 🔥 파라미터 추가
+function captchaFailed(reason = '봇으로 판정') {
     captchaVerified = false;
     stopDynamicRendering();
-    stopMouseTracking();  // 🔥 추가
+    stopMouseTracking();
     
     const btn = document.getElementById('dynamicCaptchaBtn');
     const status = document.getElementById('captchaStatus');
@@ -396,18 +404,22 @@ function captchaFailed(reason = '봇으로 판정') {  // 🔥 파라미터 추�
     }
     
     if (status) {
-        status.innerHTML = `✗ ${reason}`;  // 🔥 수정
+        // ❌ 구체적인 이유 노출하지 않음
+        status.innerHTML = '✗ 인증에 실패했습니다';
         status.style.color = '#ef4444';
     }
     
+    // ✅ 구체적인 정보는 콘솔에만 (개발용)
     console.log(`❌ 캡차 검증 실패: ${reason}`);
+    console.log(`클릭: ${captchaClickCount}회, 마우스: ${mouseMovements.length}포인트`);
     
-    // 🔥 보안 이슈 기록 추가
+    // ✅ 관리자 대시보드에만 자세한 정보 기록
     addSecurityAlert({
         type: 'critical',
-        title: '봇 접근 탐지',
-        description: `자동화된 로그인 시도가 차단되었습니다.`,
+        title: '의심스러운 로그인 시도',
+        description: '보안 검증에 실패했습니다.',
         details: {
+            // 관리자만 볼 수 있는 정보
             판정이유: reason,
             클릭횟수: `${captchaClickCount}회`,
             마우스포인트: `${mouseMovements.length}개`,
@@ -416,8 +428,12 @@ function captchaFailed(reason = '봇으로 판정') {  // 🔥 파라미터 추�
     });
     
     setTimeout(() => {
-        showNotification('자동화된 접근이 감지되었습니다.', 'error');
-        closeModal('loginModal');
+        // ❌ 구체적인 차단 사유 노출하지 않음
+        showNotification('보안 검증에 실패했습니다.', 'error');
+        
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
     }, 2000);
 }
 
@@ -526,16 +542,23 @@ async function handleLogin(event) {
         return;
     }
 
+    // ✅ 캡차가 필요한 상태인데 아직 검증 안 됨
+    const captchaContainer = document.getElementById('captchaContainer');
+    if (captchaContainer && 
+        captchaContainer.style.display === 'block' && 
+        !captchaVerified) {
+        showNotification("본인 인증을 완료해주세요.", "warning");
+        return;
+    }
+
     setLoadingState(form, true);
 
     try {
-        // FormData 생성
         const formData = new FormData();
         formData.append('loginId', id);
         formData.append('password', pw);
         formData.append('captchaVerified', captchaVerified ? 'true' : 'false');
 
-        // 백엔드로 요청
         const res = await fetch('/3D/backend/login.php', {
             method: "POST",
             body: formData
@@ -548,7 +571,6 @@ async function handleLogin(event) {
             showNotification(data.message, "warning");
             showCaptcha();
             
-            // 보안 알림 추가
             addSecurityAlert({
                 type: 'warning',
                 title: '의심스러운 활동 감지',
@@ -566,12 +588,12 @@ async function handleLogin(event) {
 
         // Case 2: 차단됨
         if (data.blocked) {
-            showNotification(data.message, "error");
+            showNotification('보안 정책에 의해 로그인이 차단되었습니다.', "error");
             
             addSecurityAlert({
                 type: 'critical',
                 title: '로그인 차단',
-                description: data.message,
+                description: '보안 정책 위반',
                 details: {
                     '위험점수': data.riskScore + '점',
                     '이유': data.reasons ? data.reasons.join(', ') : '-',
@@ -579,7 +601,12 @@ async function handleLogin(event) {
                 }
             });
             
-            closeModal("loginModal");
+            setTimeout(() => {
+                closeModal("loginModal");
+                // 페이지 새로고침은 선택사항
+                // window.location.reload();
+            }, 2000);
+            
             setLoadingState(form, false);
             return;
         }
@@ -588,15 +615,14 @@ async function handleLogin(event) {
         if (!data.success) {
             showNotification(data.message || "로그인에 실패했습니다.", "error");
             
-            // 캡차 리셋
+            // ✅ 캡차 리셋 (다시 시도할 수 있도록)
             captchaVerified = false;
             hideCaptcha();
             
-            // 보안 알림 추가
             addSecurityAlert({
                 type: 'warning',
                 title: '로그인 실패',
-                description: '존재하지 않는 계정으로 로그인 시도',
+                description: '잘못된 계정 정보',
                 details: {
                     '시도ID': id,
                     '위험점수': data.riskScore + '점',
@@ -618,7 +644,6 @@ async function handleLogin(event) {
 
         sessionStorage.setItem("currentUser", JSON.stringify(currentUser));
 
-        // 성공 알림
         addSecurityAlert({
             type: 'info',
             title: '로그인 성공',
@@ -635,7 +660,7 @@ async function handleLogin(event) {
         closeModal("loginModal");
         updateUIForLoggedInUser();
 
-        // 캡차 리셋
+        // ✅ 캡차 완전 리셋
         captchaVerified = false;
         captchaClickCount = 0;
         hideCaptcha();
