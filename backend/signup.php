@@ -1,13 +1,27 @@
 <?php
 // ========================================
-// 개발 중: 에러 표시 ON
-// 배포 시: 0으로 변경!
+// 🔥 에러 숨김 (프로덕션용)
 // ========================================
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+error_reporting(0);
+ini_set('display_errors', 0);
 
-require_once 'connect.php';
+// ========================================
+// JSON 헤더 먼저 출력
+// ========================================
 header('Content-Type: application/json; charset=utf-8');
+
+// ========================================
+// DB 연결
+// ========================================
+try {
+    require_once 'connect.php';
+} catch (Exception $e) {
+    echo json_encode([
+        "success" => false,
+        "message" => "데이터베이스 연결 실패"
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // ========================================
 // 1) 입력값 받기
@@ -60,18 +74,10 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-// 전화번호 형식 (010-0000-0000)
-if (!preg_match('/^010-\d{4}-\d{4}$/', $phone)) {
-    echo json_encode([
-        "success" => false,
-        "message" => "올바른 전화번호 형식이 아닙니다. (010-0000-0000)"
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
 try {
     // ========================================
     // 4) 아이디 중복 체크
+    // ✅ IDsave (대문자 I, 대문자 S)
     // ========================================
     $checkStmt = $pdo->prepare("SELECT ID FROM IDsave WHERE ID = ?");
     $checkStmt->execute([$id]);
@@ -85,20 +91,12 @@ try {
     }
 
     // ========================================
-    // 5) 이메일 중복 체크 (선택사항)
-    // ========================================
-    // 테이블에 email 컬럼이 있다면:
-    // $emailCheck = $pdo->prepare("SELECT ID FROM IDsave WHERE email = ?");
-    // $emailCheck->execute([$email]);
-    // if ($emailCheck->fetch()) { ... }
-
-    // ========================================
-    // 6) 비밀번호 해시
+    // 5) 비밀번호 해시
     // ========================================
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
     // ========================================
-    // 7) IDsave INSERT
+    // 6) IDsave INSERT
     // ========================================
     $insertStmt = $pdo->prepare("
         INSERT INTO IDsave (ID, Password)
@@ -117,13 +115,13 @@ try {
     $usernum_pk = $pdo->lastInsertId();
 
     // ========================================
-    // 8) IDsave.Usernum 업데이트
+    // 7) IDsave.Usernum 업데이트
     // ========================================
     $updateStmt = $pdo->prepare("UPDATE IDsave SET Usernum = ? WHERE inUsernum = ?");
     $updateStmt->execute([$usernum_pk, $usernum_pk]);
 
     // ========================================
-    // 9) 환경정보 수집
+    // 8) 환경정보 수집
     // ========================================
     $ip              = $_SERVER['REMOTE_ADDR'];
     $accept_language = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? "";
@@ -136,7 +134,7 @@ try {
     $sec_fetch_dest  = $_SERVER['HTTP_SEC_FETCH_DEST'] ?? "";
 
     // ========================================
-    // 10) useridinformation INSERT
+    // 9) useridinformation INSERT
     // ========================================
     $infoStmt = $pdo->prepare("
         INSERT INTO useridinformation 
@@ -159,7 +157,7 @@ try {
     ]);
 
     // ========================================
-    // 11) 성공 응답
+    // 10) 성공 응답
     // ========================================
     echo json_encode([
         "success" => true,
@@ -170,10 +168,7 @@ try {
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (PDOException $e) {
-    // ========================================
-    // 에러 로그 (개발용)
-    // 프로덕션에서는 error_log() 사용 권장
-    // ========================================
+    // 에러 로그 (서버 로그 파일에만 기록)
     error_log("회원가입 오류: " . $e->getMessage());
     
     echo json_encode([
