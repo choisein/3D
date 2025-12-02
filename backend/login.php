@@ -153,30 +153,41 @@ if ($user && password_verify($password, $user['Password'])) {
         $riskReasons = [];
         
         // HTTP 헤더 분석
-        $ipAnalysis = analyzeIP($pdo, $ip);
+        $ipAnalysis = analyzeIP($ip, $pdo);
         $riskScore += $ipAnalysis['score'];
-        $riskReasons = array_merge($riskReasons, $ipAnalysis['reasons']);
-        
+        if ($ipAnalysis['score'] > 0 && !empty($ipAnalysis['reason'])) {
+            $riskReasons[] = $ipAnalysis['reason'];
+        }
+
         $uaAnalysis = analyzeUserAgent($userAgent);
         $riskScore += $uaAnalysis['score'];
-        $riskReasons = array_merge($riskReasons, $uaAnalysis['reasons']);
-        
+        if ($uaAnalysis['score'] > 0 && !empty($uaAnalysis['reason'])) {
+            $riskReasons[] = $uaAnalysis['reason'];
+        }
+
         $acceptLangAnalysis = analyzeAcceptLanguage($acceptLanguage);
         $riskScore += $acceptLangAnalysis['score'];
-        $riskReasons = array_merge($riskReasons, $acceptLangAnalysis['reasons']);
-        
+        if ($acceptLangAnalysis['score'] > 0 && !empty($acceptLangAnalysis['reason'])) {
+            $riskReasons[] = $acceptLangAnalysis['reason'];
+        }
+
         $refererAnalysis = analyzeReferer($referer);
         $riskScore += $refererAnalysis['score'];
-        $riskReasons = array_merge($riskReasons, $refererAnalysis['reasons']);
-        
-        $acceptAnalysis = analyzeAccept($accept, $userAgent);
+        if ($refererAnalysis['score'] > 0 && !empty($refererAnalysis['reason'])) {
+            $riskReasons[] = $refererAnalysis['reason'];
+        }
+
+        $acceptAnalysis = analyzeAccept($accept, $userAgent);   
         $riskScore += $acceptAnalysis['score'];
-        $riskReasons = array_merge($riskReasons, $acceptAnalysis['reasons']);
-        
-        $speedAnalysis = analyzeLoginSpeed($pdo, $ip);
+        if (!empty($acceptAnalysis['reasons'])) {
+            $riskReasons = array_merge($riskReasons, $acceptAnalysis['reasons']);
+        }
+
+        $speedAnalysis = analyzeLoginSpeed($ip, $pdo);
         $riskScore += $speedAnalysis['score'];
-        $riskReasons = array_merge($riskReasons, $speedAnalysis['reasons']);
-        
+        if ($speedAnalysis['score'] > 0 && !empty($speedAnalysis['reason'])) {
+            $riskReasons[] = $speedAnalysis['reason'];
+        }
         // ========================================
         // 위험도 판정 (로그는 이미 기록됨!)
         // ========================================
