@@ -122,39 +122,115 @@ try {
     $stmt->execute([$id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($user && password_verify($password, $user['Password'])) {
-        // 로그인 성공
-        $usernum = $user['Usernum'];
-        $location = getLocationFromIP($ip);
-        
-        // 세션 설정
-        $_SESSION['usernum'] = $usernum;
-        $_SESSION['id'] = $id;
-        
-        // 로그 기록
-        logLoginAttempt($pdo, $usernum, $id, $ip, $userAgent, $referer, $acceptLanguage, $riskScore, 'success');
-        
-        echo json_encode([
-            "success" => true,
-            "message" => "로그인 성공",
-            "usernum" => $usernum,
-            "id" => $id,
-            "name" => $id, // 이름 정보가 있다면 여기서 추가
-            "ip" => $ip,
-            "location" => $location,
-            "riskScore" => $riskScore
-        ], JSON_UNESCAPED_UNICODE);
-        
-    } else {
-        // 로그인 실패 (ID 또는 비밀번호 불일치)
-        logLoginAttempt($pdo, null, $id, $ip, $userAgent, $referer, $acceptLanguage, $riskScore, 'fail');
-        
-        echo json_encode([
-            "success" => false,
-            "message" => "아이디 또는 비밀번호가 일치하지 않습니다.",
-            "riskScore" => $riskScore
-        ], JSON_UNESCAPED_UNICODE);
+    // ========================================
+// 사용자 인증 (비밀번호 검증)
+// ========================================
+if ($user && password_verify($password, $user['Password'])) {
+    
+    $usernum = $user['Usernum'];
+    $ip = $_SERVER['REMOTE_ADDR'];
+    $location = getLocationFromIP($ip);
+    
+    // ✅✅✅ 로그는 무조건 먼저 기록! (차단 여부와 상관없이)
+    try {
+        $logStmt = $pdo->prepare("
+            INSERT INTO Loginlog (Usernum, IP, location, data)
+            VALUES (?, ?, ?, NOW())
+        ");
+        $logStmt->execute([$usernum, $ip, $location]);
+    } catch (PDOException $e) {
+        error_log("로그 기록 실패: " . $e->getMessage());
     }
+    
+    // ========================================
+    // 캡차 검증 확인
+    // ========================================
+    $captchaVerified = ($_POST['captchaVerified'] ?? 'false') === 'true';
+    
+    if (!$captchaVerified) {
+        // RBA 분석
+        $riskScore = 0;
+        $riskReasons = [];
+        
+        // HTTP 헤더 분석
+        $ipAnalysis = analyzeIP($pdo, $ip);
+        $riskScore += $ipAnalysis['score'];
+        $riskReasons = array_merge($riskReasons, $ipAnalysis['reasons']);
+        
+        $uaAnalysis = analyzeUserAgent($userAgent);
+        $riskScore += $uaAnalysis['score'];
+        $riskReasons = array_merge($riskReasons, $uaAnalysis['reasons']);
+        
+        $acceptLangAnalysis = analyzeAcceptLanguage($acceptLanguage);
+        $riskScore += $acceptLangAnalysis['score'];
+        $riskReasons = array_merge($riskReasons, $acceptLangAnalysis['reasons']);
+        
+        $refererAnalysis = analyzeReferer($referer);
+        $riskScore += $refererAnalysis['score'];
+        $riskReasons = array_merge($riskReasons, $refererAnalysis['reasons']);
+        
+        $acceptAnalysis = analyzeAccept($accept, $userAgent);
+        $riskScore += $acceptAnalysis['score'];
+        $riskReasons = array_merge($riskReasons, $acceptAnalysis['reasons']);
+        
+        $speedAnalysis = analyzeLoginSpeed($pdo, $ip);
+        $riskScore += $speedAnalysis['score'];
+        $riskReasons = array_merge($riskReasons, $speedAnalysis['reasons']);
+        
+        // ========================================
+        // 위험도 판정 (로그는 이미 기록됨!)
+        // ========================================
+        if ($riskScore >= 10) {
+            // 즉시 차단
+            echo json_encode([
+                "success" => false,
+                "blocked" => true,
+                "message" => "보안 정책에 의해 로그인이 차단되었습니다.",
+                "riskScore" => $riskScore,
+                "reasons" => $riskReasons
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
+        if ($riskScore >= 4) {
+            // 캡차 요구
+            echo json_encode([
+                "success" => false,
+                "needCaptcha" => true,
+                "message" => "추가 인증이 필요합니다.",
+                "riskScore" => $riskScore,
+                "reasons" => $riskReasons
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+    
+    // ========================================
+    // 로그인 성공
+    // ========================================
+    session_start();
+    $_SESSION['usernum'] = $usernum;
+    $_SESSION['id'] = $id;
+    
+    echo json_encode([
+        "success" => true,
+        "message" => "로그인 성공",
+        "id" => $id,
+        "name" => $id,
+        "usernum" => $usernum,
+        "location" => $location,
+        "riskScore" => $riskScore ?? 0
+    ], JSON_UNESCAPED_UNICODE);
+    
+} else {
+    // ========================================
+    // 로그인 실패 (잘못된 비밀번호)
+    // ========================================
+    echo json_encode([
+        "success" => false,
+        "message" => "아이디 또는 비밀번호가 일치하지 않습니다."
+    ], JSON_UNESCAPED_UNICODE);
+}
 
 } catch (PDOException $e) {
     echo json_encode([
@@ -265,16 +341,62 @@ function analyzeReferer($referer) {
  * Accept 헤더 분석
  */
 function analyzeAccept($accept, $userAgent) {
+    $score = 0;
+    $reasons = [];
+    
+    // Accept 헤더가 아예 없는 경우
     if (empty($accept)) {
-        return ['score' => 2, 'reason' => 'Accept 헤더 누락'];
+        $score += 2;
+        $reasons[] = "Accept 헤더 누락";
+        return ['score' => $score, 'reasons' => $reasons];
     }
     
-    // User-Agent가 브라우저인데 Accept에 text/html이 없으면 의심
-    if (stripos($userAgent, 'Mozilla') !== false && stripos($accept, 'text/html') === false) {
-        return ['score' => 10, 'reason' => 'Accept 헤더 불일치'];
+    // ✅ 브라우저 판단 로직 개선
+    $isBrowser = false;
+    
+    // Chrome, Firefox, Safari, Edge 등 주요 브라우저 체크
+    $browserPatterns = [
+        'Chrome', 'Firefox', 'Safari', 'Edge', 
+        'Opera', 'Brave', 'Vivaldi', 'Samsung'
+    ];
+    
+    foreach ($browserPatterns as $browser) {
+        if (stripos($userAgent, $browser) !== false) {
+            $isBrowser = true;
+            break;
+        }
     }
     
-    return ['score' => 0, 'reason' => ''];
+    // ✅ 모바일 브라우저 체크
+    $mobilePatterns = ['Mobile', 'Android', 'iPhone', 'iPad'];
+    foreach ($mobilePatterns as $mobile) {
+        if (stripos($userAgent, $mobile) !== false) {
+            $isBrowser = true;
+            break;
+        }
+    }
+    
+    // 브라우저인데 Accept 헤더 검증
+    if ($isBrowser) {
+        // ✅ text/html 또는 application/xhtml+xml 또는 */* 포함 여부만 체크
+        $validAccepts = ['text/html', 'application/xhtml+xml', '*/*', 'text/*'];
+        $hasValidAccept = false;
+        
+        foreach ($validAccepts as $valid) {
+            if (stripos($accept, $valid) !== false) {
+                $hasValidAccept = true;
+                break;
+            }
+        }
+        
+        // ❌ 브라우저인데 유효한 Accept가 하나도 없으면
+        if (!$hasValidAccept) {
+            $score += 10;
+            $reasons[] = "브라우저인데 Accept 헤더 불일치";
+        }
+    }
+    
+    return ['score' => $score, 'reasons' => $reasons];
 }
 
 /**
