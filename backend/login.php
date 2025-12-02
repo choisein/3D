@@ -327,30 +327,41 @@ function getLocationFromIP($ip) {
 }
 
 /**
- * 로그인 시도 기록
+ * 로그인 시도 기록 (안전 버전)
  */
 function logLoginAttempt($pdo, $usernum, $id, $ip, $userAgent, $referer, $acceptLanguage, $riskScore, $result) {
     try {
         $location = getLocationFromIP($ip);
         
+        // ✅ 기본 컬럼만 사용 (Usernum, IP, location, data)
         $stmt = $pdo->prepare("
             INSERT INTO Loginlog 
-            (Usernum, IP, location, user_agent, referer, accept_language, risklevel, login_result, data) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            (Usernum, IP, location, data) 
+            VALUES (?, ?, ?, NOW())
         ");
         
         $stmt->execute([
             $usernum,
             $ip,
-            $location,
-            $userAgent,
-            $referer,
-            $acceptLanguage,
-            $riskScore,
-            $result
+            $location
         ]);
+        
+        // ✅ 추가 정보는 별도 로그 파일에 기록 (선택사항)
+        $logData = [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'usernum' => $usernum,
+            'id' => $id,
+            'ip' => $ip,
+            'user_agent' => $userAgent,
+            'referer' => $referer,
+            'accept_language' => $acceptLanguage,
+            'risk_score' => $riskScore,
+            'result' => $result
+        ];
+        
+        error_log("LOGIN_ATTEMPT: " . json_encode($logData, JSON_UNESCAPED_UNICODE));
+        
     } catch (PDOException $e) {
-        // 로그 기록 실패는 무시 (로그인 프로세스는 계속)
         error_log("Login log failed: " . $e->getMessage());
     }
 }
