@@ -8,7 +8,7 @@ let isLoggedIn = false;
 let currentUser = null;
 
 const LOGIN_API = 'login.php';
-const SIGNUP_API = 'upload.php';
+const SIGNUP_API = 'signup.php';
 const LOGOUT_API = 'logout.php';
 
 // 캡차 시스템 변수
@@ -558,8 +558,8 @@ async function handleLogin(event) {
         formData.append('loginId', id);
         formData.append('password', pw);
         formData.append('captchaVerified', captchaVerified ? 'true' : 'false');
-
-        const res = await fetch('/3D/backend/login.php', {
+//여기서 경로 수정하거나 해야함!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!(전역 변수 사용)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!맞다면 그대로!!!!!!!!!!!
+        const res = await fetch(LOGIN_API, {
             method: "POST",
             body: formData
         });
@@ -681,29 +681,61 @@ async function handleSignup(event) {
 
     const form = event.target;
     const formData = new FormData(form);
-    
-    const id = formData.get("signupId");
-    const pw = formData.get("password");
-    const name = formData.get("name");
 
-    if (FakeDB.exists(id)) {
-        showNotification("이미 존재하는 ID입니다.", "error");
+    // 기본 유효성 검사
+    const id = formData.get('signupId');
+    const password = formData.get('password');
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (!id || !password || !confirmPassword) {
+        showNotification('모든 필드를 입력해주세요.', 'error');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        showNotification('비밀번호가 일치하지 않습니다.', 'error');
         return;
     }
 
-    FakeDB.addUser({
-        id: id,
-        password: pw,
-        name: name
-    });
+    setLoadingState(form, true);
 
-    showNotification("회원가입 성공.", "success");
-    closeModal("signupModal");
+    try {
+        const res = await fetch(SIGNUP_API, {
+            method: "POST",
+            body: formData
+        });
 
-    setTimeout(() => {
-        openModal("loginModal");
-    }, 500);
+        // ✅ 응답이 JSON인지 확인
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            const text = await res.text();
+            console.error('서버 응답:', text);
+            throw new Error('서버가 JSON을 반환하지 않았습니다.');
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+            showNotification(data.message || '회원가입에 실패했습니다.', 'error');
+            return;
+        }
+
+        showNotification('회원가입이 완료되었습니다. 로그인해주세요.', 'success');
+        closeModal('signupModal');
+
+        setTimeout(() => {
+            openModal('loginModal');
+        }, 500);
+
+    } catch (err) {
+        console.error('회원가입 오류:', err);
+        showNotification('서버 오류가 발생했습니다.', 'error');
+    } finally {
+        setLoadingState(form, false);
+    }
 }
+
+
 
 // ============================================
 // UI 헬퍼 함수들
@@ -715,6 +747,25 @@ function clearFormErrors(form) {
         field.style.animation = '';
     });
 }
+
+//추가한 함수!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+function setLoadingState(form, loading) {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    if (!submitBtn) return;
+    
+    if (loading) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.textContent;
+        submitBtn.textContent = '처리중...';
+        submitBtn.style.opacity = '0.7';
+    } else {
+        submitBtn.disabled = false;
+        submitBtn.textContent = submitBtn.dataset.originalText || '확인';
+        submitBtn.style.opacity = '1';
+    }
+}
+
 
 function showNotification(message, type = 'success') {
     const notification = document.getElementById('notification');
