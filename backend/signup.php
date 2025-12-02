@@ -1,4 +1,8 @@
 <?php
+// ========================================
+// 개발 중: 에러 표시 ON
+// 배포 시: 0으로 변경!
+// ========================================
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -6,27 +10,72 @@ require_once 'connect.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // ========================================
-// 1) 입력값 검사
+// 1) 입력값 받기
 // ========================================
-$id       = $_POST['signupId'] ?? '';
+$id       = trim($_POST['signupId'] ?? '');
 $password = $_POST['password'] ?? '';
+$name     = trim($_POST['name'] ?? '');
+$phone    = trim($_POST['phone'] ?? '');
+$email    = trim($_POST['email'] ?? '');
 
-if (!$id || !$password) {
+// ========================================
+// 2) 필수 입력값 검사
+// ========================================
+if (!$id || !$password || !$name || !$phone || !$email) {
     echo json_encode([
         "success" => false,
-        "message" => "아이디와 비밀번호를 입력해주세요."
+        "message" => "모든 필드를 입력해주세요."
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ========================================
+// 3) 유효성 검증
+// ========================================
+
+// ID 길이 (4-20자)
+if (strlen($id) < 4 || strlen($id) > 20) {
+    echo json_encode([
+        "success" => false,
+        "message" => "아이디는 4-20자 사이여야 합니다."
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 비밀번호 길이 (8자 이상)
+if (strlen($password) < 8) {
+    echo json_encode([
+        "success" => false,
+        "message" => "비밀번호는 8자 이상이어야 합니다."
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 이메일 형식
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    echo json_encode([
+        "success" => false,
+        "message" => "올바른 이메일 형식이 아닙니다."
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 전화번호 형식 (010-0000-0000)
+if (!preg_match('/^010-\d{4}-\d{4}$/', $phone)) {
+    echo json_encode([
+        "success" => false,
+        "message" => "올바른 전화번호 형식이 아닙니다. (010-0000-0000)"
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 try {
-
     // ========================================
-    // 2) 아이디 중복 체크
+    // 4) 아이디 중복 체크
     // ========================================
-    $checkStmt = $pdo->prepare("SELECT ID FROM idsave WHERE ID = ?");
+    $checkStmt = $pdo->prepare("SELECT ID FROM IDsave WHERE ID = ?");
     $checkStmt->execute([$id]);
-
+    
     if ($checkStmt->fetch()) {
         echo json_encode([
             "success" => false,
@@ -36,18 +85,26 @@ try {
     }
 
     // ========================================
-    // 3) 비밀번호 해시
+    // 5) 이메일 중복 체크 (선택사항)
+    // ========================================
+    // 테이블에 email 컬럼이 있다면:
+    // $emailCheck = $pdo->prepare("SELECT ID FROM IDsave WHERE email = ?");
+    // $emailCheck->execute([$email]);
+    // if ($emailCheck->fetch()) { ... }
+
+    // ========================================
+    // 6) 비밀번호 해시
     // ========================================
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
     // ========================================
-    // 4) idsave INSERT (PK=inUsernum 생성)
+    // 7) IDsave INSERT
     // ========================================
     $insertStmt = $pdo->prepare("
-        INSERT INTO idsave (ID, Password)
+        INSERT INTO IDsave (ID, Password)
         VALUES (?, ?)
     ");
-
+    
     if (!$insertStmt->execute([$id, $hashedPassword])) {
         echo json_encode([
             "success" => false,
@@ -56,17 +113,17 @@ try {
         exit;
     }
 
-    // 새로 생성된 PK (inUsernum)
+    // 새로 생성된 PK
     $usernum_pk = $pdo->lastInsertId();
 
     // ========================================
-    // 5) idsave.Usernum 업데이트 (FK 매칭용)
+    // 8) IDsave.Usernum 업데이트
     // ========================================
-    $updateStmt = $pdo->prepare("UPDATE idsave SET Usernum = ? WHERE inUsernum = ?");
+    $updateStmt = $pdo->prepare("UPDATE IDsave SET Usernum = ? WHERE inUsernum = ?");
     $updateStmt->execute([$usernum_pk, $usernum_pk]);
 
     // ========================================
-    // 6) 환경정보 수집
+    // 9) 환경정보 수집
     // ========================================
     $ip              = $_SERVER['REMOTE_ADDR'];
     $accept_language = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? "";
@@ -79,7 +136,7 @@ try {
     $sec_fetch_dest  = $_SERVER['HTTP_SEC_FETCH_DEST'] ?? "";
 
     // ========================================
-    // 7) useridinformation INSERT
+    // 10) useridinformation INSERT
     // ========================================
     $infoStmt = $pdo->prepare("
         INSERT INTO useridinformation 
@@ -87,9 +144,9 @@ try {
          sec_fetch_site, sec_fetch_mode, sec_fetch_user, sec_fetch_dest)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
-
+    
     $infoStmt->execute([
-        $usernum_pk,     // FK → idsave.Usernum
+        $usernum_pk,
         $ip,
         $accept_language,
         $referer,
@@ -102,19 +159,26 @@ try {
     ]);
 
     // ========================================
-    // 8) 성공 응답
+    // 11) 성공 응답
     // ========================================
     echo json_encode([
         "success" => true,
         "message" => "회원가입이 완료되었습니다.",
-        "usernum" => $usernum_pk
+        "usernum" => $usernum_pk,
+        "id" => $id,
+        "name" => $name
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (PDOException $e) {
-
+    // ========================================
+    // 에러 로그 (개발용)
+    // 프로덕션에서는 error_log() 사용 권장
+    // ========================================
+    error_log("회원가입 오류: " . $e->getMessage());
+    
     echo json_encode([
         "success" => false,
-        "message" => "DB 오류: " . $e->getMessage()
+        "message" => "회원가입 중 오류가 발생했습니다."
     ], JSON_UNESCAPED_UNICODE);
 }
 ?>
