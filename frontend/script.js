@@ -637,7 +637,7 @@ async function handleLogin(event) {
         // Case 4: 로그인 성공
         currentUser = {
             id: data.id || id,
-            name: data.name || id,
+            name: data.name ,
             usernum: data.usernum
         };
         isLoggedIn = true;
