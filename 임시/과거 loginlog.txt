@@ -16,7 +16,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 /* ===== 여기 추가 ===== */
 // true 로 바꾸면 점수랑 상관없이 항상 캡챠 먼저 요구
-define('FORCE_CAPTCHA_MODE', false);   // 필요할 때 true 로 변경
+define('FORCE_CAPTCHA_MODE', true);   // 필요할 때 true 로 변경
 /* ===================== */
 
 /* =====================================================
@@ -43,11 +43,18 @@ $new_ua             = $_SERVER['HTTP_USER_AGENT']         ?? '';
 // 원본 Accept (fetch/XHR 에서 오는 값: 보통 */*)
 $raw_accept = $_SERVER['HTTP_ACCEPT'] ?? '';
 
+// 세션에 저장해둔 "정상 긴 Accept" 가 있으면 그걸 사용
+if (!empty($_SESSION['browser_accept'])) {
+    $new_accept = $_SESSION['browser_accept'];   // 페이지 로딩 때의 긴 문자열
+} else {
+    $new_accept = $raw_accept;                  // 세션에 없으면 어쩔 수 없이 현재 값 사용
+}
+
 // 페이지 로딩 시 세션에 저장해둔 "정상 긴 Accept" 가 있으면 그걸 사용
 if (!empty($_SESSION['browser_accept'])) {
     $new_accept = $_SESSION['browser_accept'];   // 페이지 로딩 때의 긴 문자열
 } else {
-    $new_accept = $raw_accept;                   // 세션에 없으면 어쩔 수 없이 현재 값 사용
+    $new_accept = $raw_accept;                  // 세션에 없으면 어쩔 수 없이 현재 값 사용
 }
 
 $new_lang           = $_SERVER['HTTP_ACCEPT_LANGUAGE']    ?? '';
@@ -74,13 +81,14 @@ try {
 
     /* =================================================
      * 4. useridinformation 에서 과거 헤더 정보 가져오기
+     *    (user_ip_history, user_ua_history, user_language_history 생성)
      * ================================================= */
     $user_ip_history        = [];
     $user_ua_history        = [];
     $user_language_history  = [];
 
     if ($usernum !== null) {
-        // 한 사용자에 대해 최근 5개 정도만 사용
+        // 한 사용자에 대해 최근 N개 정도만 사용 (여기선 5개 예시)
         $histStmt = $pdo->prepare("
             SELECT ip, user_agent, accept_language
             FROM useridinformation
@@ -122,21 +130,17 @@ try {
     // FORCE_CAPTCHA_MODE 가 true 이고 아직 캡챠 통과 안 했으면
     // 점수와 상관없이 무조건 캡챠부터 요구
     if (defined('FORCE_CAPTCHA_MODE') && FORCE_CAPTCHA_MODE && $captchaVerified !== 'true') {
-        $action = 'REQUIRE_CAPTCHA';
+    $action = 'REQUIRE_CAPTCHA';
     }
     // =======================================
 
 
-    // ====== 5-1. 점수 기준에 따른 차단/캡챠 처리 ======
+  
+
+    // ====== 5-1. 점수 기준에 따른 차단/캡차 처리 ======
     if ($action === 'BLOCK_AND_REDIRECT_MAIN') {
-
-        // ★ 9점 이상 차단 → warning = 2 기록
-        insert_idproblem($pdo, $usernum, 2);
-
-        log_login_attempt(
-            $pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
-            $new_lang, $riskScore, 0 // success=0
-        );
+        log_login_attempt($pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
+                          $new_lang, $riskScore, 0); // success=0
 
         echo json_encode([
             "success"   => false,
@@ -148,19 +152,13 @@ try {
     }
 
     if ($action === 'REQUIRE_CAPTCHA' && $captchaVerified !== 'true') {
-
-        // ★ 캡챠 요구 + 아직 통과 못함 → warning = 1 기록
-        insert_idproblem($pdo, $usernum, 1);
-
-        log_login_attempt(
-            $pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
-            $new_lang, $riskScore, 0 // success=0
-        );
+        log_login_attempt($pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
+                          $new_lang, $riskScore, 0); // success=0
 
         echo json_encode([
             "success"     => false,
             "needCaptcha" => true,
-            "message"     => "의심스러운 활동이 감지되었습니다. 캡챠 인증을 완료해주세요.",
+            "message"     => "의심스러운 활동이 감지되었습니다. 캡차 인증을 완료해주세요.",
             "riskScore"   => $riskScore
         ], JSON_UNESCAPED_UNICODE);
         exit;
@@ -171,30 +169,25 @@ try {
      * ================================================= */
     if (!$user || !password_verify($password, $user['Password'])) {
 
-        log_login_attempt(
-            $pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
-            $new_lang, $riskScore, 0 // 실패
-        );
+        log_login_attempt($pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
+                          $new_lang, $riskScore, 0); // 실패
 
         echo json_encode([
-            "success"   => false,
-            "message"   => "아이디 또는 비밀번호가 일치하지 않습니다.",
+            "success" => false,
+            "message" => "아이디 또는 비밀번호가 일치하지 않습니다.",
             "riskScore" => $riskScore
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     /* =================================================
-     * 7. 여기까지 도달 = 점수 허용 + (필요 시) 캡챠통과 + 비밀번호 일치
-     *    → 캡챠 통과한 로그인은 idproblem 에 아무것도 기록되지 않음
+     * 7. 여기까지 도달 = 점수 허용 + 캡차통과 + 비밀번호 일치
      * ================================================= */
     $_SESSION['usernum'] = $usernum;
     $_SESSION['id']      = $id;
 
-    log_login_attempt(
-        $pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
-        $new_lang, $riskScore, 1 // 성공
-    );
+    log_login_attempt($pdo, $usernum, $id, $new_ip, $new_ua, $new_referer,
+                      $new_lang, $riskScore, 1); // 성공
 
     echo json_encode([
         "success"   => true,
@@ -221,6 +214,8 @@ try {
  * ===================================================== */
 // =====================================================
 //  IP → 위치 문자열
+//  1) ip-api 로 나라/도시 조회
+//  2) 실패하면 prefix 기반 그룹(Korea / USA / Europe ...) 으로 fallback
 // =====================================================
 function get_location_from_ip($ip) {
     // 로컬호스트는 따로 표시
@@ -362,6 +357,10 @@ function get_group_name_php($ip) {
 
 /**
  * IP 비교 점수
+ * - 같은 도시, 다른 ip -> 1점
+ * - 같은 국가 그룹, 다른 ip -> 2점
+ * - 다른 국가 ip -> 3점
+ * - 악성 IP 그룹 -> 10점
  */
 function calculate_dynamic_ip_score_final_country_php($new_ip, $user_ip_history) {
     $g = get_scoring_globals();
@@ -385,6 +384,7 @@ function calculate_dynamic_ip_score_final_country_php($new_ip, $user_ip_history)
         $comparison = 0;
 
         if ($new_parts[0] !== $prev_parts[0]) {
+            // A 옥텟이 다를 때
             if ($new_group !== $prev_group) {
                 if (in_array($new_group, $COUNTRY_GROUPS) && in_array($prev_group, $COUNTRY_GROUPS)) {
                     $comparison = 3;   // 다른 국가 그룹
@@ -468,6 +468,10 @@ function extract_ua_features_php($ua) {
 
 /**
  * UA 점수
+ * - 브라우저/OS 버전이 다른가 -> 1점
+ * - OS 가 변경되었는가 -> 2점
+ * - 누락/비어있음 -> 1점
+ * - 스캐너/봇 -> 10점
  */
 function calculate_dynamic_ua_score_php($new_ua, $user_ua_history) {
     $new = extract_ua_features_php($new_ua);
@@ -492,7 +496,9 @@ function calculate_dynamic_ua_score_php($new_ua, $user_ua_history) {
     return $max;
 }
 
-/* Accept-Language 점수 */
+/* Accept-Language 점수
+ * - 클라이언트가 과거와 다른 언어를 지원 -> 2점
+ */
 function calculate_dynamic_language_score_php($new_lang, $user_lang_history) {
     if (empty($user_lang_history)) return 0;
 
@@ -503,18 +509,25 @@ function calculate_dynamic_language_score_php($new_lang, $user_lang_history) {
     return 0;
 }
 
-/* Referer 점수 */
+/* Referer 점수
+ * - referer 헤더가 없거나 (null/빈 문자열/none/null)
+ *   또는 의심스러운 외부 도메인 목록에 포함 -> 2점
+ */
 function calculate_referer_score_php($new_ref) {
     $g   = get_scoring_globals();
     $set = $g['SUSPICIOUS_REFERERS'];
 
+    // 그대로 set 에 들어가 있으면 2점
     if (in_array($new_ref, $set, true) || in_array((string)$new_ref, $set, true)) {
         return 2;
     }
     return 0;
 }
 
-/* Accept 점수 */
+/* Accept 점수
+ * - Accept 헤더가 비었는가 -> 2점
+ * - user-agent 정보(브라우저 타입)와 맞지 않는가 -> 10점
+ */
 function calculate_accept_score_php($new_accept, $new_ua, $new_sec_fetch_site, $new_sec_fetch_mode, $new_sec_fetch_dest) {
     // 1) 헤더가 아예 없거나 이상하면 기본 2점
     if (!$new_accept || trim((string)$new_accept) === '' ||
@@ -554,7 +567,11 @@ function calculate_accept_score_php($new_accept, $new_ua, $new_sec_fetch_site, $
     return 0;
 }
 
-/* Sec-Fetch 점수 */
+
+
+/* Sec-Fetch 점수
+ * - 최신 브라우저인데 sec-fetch-* 헤더가 하나라도 없는 경우 -> 10점
+ */
 function calculate_sec_fetch_score_php($new_ua, $site, $mode, $dest, $user) {
     $g   = get_scoring_globals();
     $ua  = extract_ua_features_php($new_ua);
@@ -596,12 +613,12 @@ function calculate_integrated_login_score_php(
     $lang_score = calculate_dynamic_language_score_php($new_lang, $user_language_history);
     $ref_score  = calculate_referer_score_php($new_referer);
     $acc_score  = calculate_accept_score_php(
-        $new_accept,
-        $new_ua,
-        $new_sec_fetch_site,
-        $new_sec_fetch_mode,
-        $new_sec_fetch_dest
-    );
+    $new_accept,
+    $new_ua,
+    $new_sec_fetch_site,
+    $new_sec_fetch_mode,
+    $new_sec_fetch_dest
+);
     $sec_score  = calculate_sec_fetch_score_php(
         $new_ua,
         $new_sec_fetch_site,
@@ -627,7 +644,7 @@ function calculate_integrated_login_score_php(
         // 헤더 원본 값들
         'ip'               => $new_ip,
         'user_agent'       => $new_ua,
-        'accept'           => $new_accept,
+        'accept'           => $new_accept,        // ★ 여기에는 세션에서 가져온 "긴" Accept 가 들어감
         'accept_language'  => $new_lang,
         'referer'          => $new_referer,
         'sec_fetch_site'   => $new_sec_fetch_site,
@@ -651,6 +668,8 @@ function calculate_integrated_login_score_php(
     // 4) 최종 점수 반환
     return $total_score;
 }
+
+
 
 /**
  * 총점 -> 보안 액션
@@ -705,37 +724,6 @@ function log_login_attempt($pdo, $usernum, $id, $ip, $ua, $referer, $lang, $risk
 
     } catch (PDOException $e) {
         error_log("loginlog insert 실패: " . $e->getMessage());
-    }
-}
-
-/* ---------- idproblem 기록 함수 ---------- */
-/*
- * idproblem 테이블 구조:
- *  - Problemnum : AUTO_INCREMENT
- *  - Usernum    : 문제가 발생한 계정 번호 (idsave.Usernum)
- *  - warning    : 1 = 캡챠가 나왔지만 통과하지 못해 중단
- *                 2 = 위험 점수 9점 이상으로 차단
- *  - createddata: NOW() 로 기록
- */
-function insert_idproblem($pdo, $usernum, $warning) {
-    // usernum 이 없으면(존재하지 않는 아이디 등) 기록 생략
-    if ($usernum === null) {
-        return;
-    }
-
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO idproblem
-                (Usernum, warning, createddata)
-            VALUES
-                (:usernum, :warning, NOW())
-        ");
-        $stmt->bindValue(':usernum', (int)$usernum, PDO::PARAM_INT);
-        $stmt->bindValue(':warning', (int)$warning, PDO::PARAM_INT);
-        $stmt->execute();
-
-    } catch (PDOException $e) {
-        error_log("idproblem insert 실패: " . $e->getMessage());
     }
 }
 

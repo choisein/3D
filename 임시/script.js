@@ -89,7 +89,12 @@ function handleLogout() {
         `;
     }
 
-    fetch(LOGOUT_API, { method: 'POST' }).catch(() => { });
+    fetch(LOGOUT_API, {
+    method: 'POST',
+    headers: {
+        'Accept': 'application/json'
+    }
+}).catch(() => {});
     showNotification('로그아웃되었습니다.', 'success');
 }
 
@@ -359,8 +364,8 @@ function verifyCaptchaByHoldDuration() {
     console.log('홀드 시간(ms):', captchaHoldDuration, '시도횟수:', captchaAttemptCount);
 
     // ✅ 통과 기준(원하는 대로 조정 가능)
-    const MIN_HOLD_MS = 55;   // 0.8초 이상
-    const MAX_HOLD_MS = 2500;  // 2.5초 이하
+    const MIN_HOLD_MS = 55;   // 55ms 이상
+    const MAX_HOLD_MS = 150;  // 150ms 이하
 
     let suspicionScore = 0;
     let reasons = [];
@@ -372,7 +377,7 @@ function verifyCaptchaByHoldDuration() {
         suspicionScore = 80;
         reasons.push('너무 짧게 눌림');
     } else if (captchaHoldDuration > MAX_HOLD_MS) {
-        suspicionScore = 40;
+        suspicionScore = 80;
         reasons.push('너무 오래 눌림');
     } else {
         console.log('✅ 정상 홀드 시간 (사람)');
@@ -619,9 +624,13 @@ async function handleLogin(event) {
         formData.append('captchaVerified', captchaVerified ? 'true' : 'false');
 
         const res = await fetch(LOGIN_API, {
-            method: 'POST',
-            body: formData
-        });
+    method: 'POST',
+    headers: {
+        // 기본 */* 대신 JSON 응답을 기대한다고 명시
+        'Accept': 'application/json'
+    },
+    body: formData
+});
 
         if (!res.ok) {
             const errorText = await res.text();
@@ -779,9 +788,12 @@ async function handleSignup(event) {
 
     try {
         const res = await fetch(SIGNUP_API, {
-            method: 'POST',
-            body: formData
-        });
+    method: 'POST',
+    headers: {
+        'Accept': 'application/json'
+    },
+    body: formData
+});
 
         const contentType = res.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {

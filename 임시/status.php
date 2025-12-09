@@ -10,8 +10,12 @@ $totalLoginAttempts = (int)$q1->fetchColumn();
 $q2 = $pdo->query("SELECT COUNT(*) FROM loginlog WHERE riskscore >= 7");
 $detectedAttacks = (int)$q2->fetchColumn();
 
-// 3) 2차 방어(실패한 로그인 success=0)
-$q3 = $pdo->query("SELECT COUNT(*) FROM loginlog WHERE success = 0");
+// 3) 2차 방어(7점, 8점만 집계)
+$q3 = $pdo->query("
+    SELECT COUNT(*) 
+    FROM loginlog 
+    WHERE riskscore >= 7 AND riskscore < 9
+");
 $secondaryDefenseCount = (int)$q3->fetchColumn();
 
 echo json_encode([
