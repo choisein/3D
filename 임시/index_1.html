@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SecureBank 관리자 대시보드 - 크리덴셜 스터핑 공격 탐지 시스템">
+    <title>관리자 대시보드 - SecureBank</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    
+    
+    <!-- 관리자 전용 스타일시트 -->
+    <link rel="stylesheet" href="style_1.css">
+    
+    <!-- Chart.js 라이브러리 (원 그래프 생성용) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+</head>
+<body>
+    <!-- ========================================
+         헤더: 관리자 페이지 네비게이션
+         ======================================== -->
+    <header class="admin-header">
+        <div class="container">
+            <div class="admin-nav-wrapper">
+                <a href="index.html" class="logo">
+                    <span class="logo-icon">🔒</span>
+                    SecureBank 관리자
+                </a>
+                <nav class="admin-nav">
+                    <a href="#" class="nav-link active">대시보드</a>
+                    <a href="#" class="nav-link">로그 관리</a>
+                    <a href="#" class="nav-link">사용자 관리</a>
+                    <a href="#" class="nav-link">시스템 설정</a>
+                </nav>
+                <div class="admin-info">
+                    <span class="admin-name">관리자님</span>
+                    <button class="btn btn-outline" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========================================
+         메인 콘텐츠: 관리자 대시보드
+         ======================================== -->
+    <main class="admin-dashboard">
+        <div class="container">
+            <!-- 페이지 제목 -->
+            <div class="dashboard-header">
+                <h1>보안 모니터링 대시보드</h1>
+                <p class="dashboard-subtitle">실시간 로그인 시도 및 공격 탐지 현황</p>
+                <div class="last-update">
+                    마지막 업데이트: <span id="lastUpdateTime">2025-01-15 14:32:15</span>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 통계 카드 섹션 (상단 3개 박스)
+                 백엔드 API: /api/admin/stats
+                 ======================================== -->
+            <section class="stats-section">
+                <!-- 카드 1: 총 로그인 시도 횟수 -->
+                <div class="stat-card stat-card-primary">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <h3 class="stat-label">총 로그인 시도</h3>
+                        <!-- 백엔드에서 가져올 데이터: totalLoginAttempts -->
+                        <p class="stat-value" id="totalLoginAttempts">1,247</p>
+                        <p class="stat-change positive">↑ 12% (지난 시간 대비)</p>
+                    </div>
+                </div>
+
+                <!-- 카드 2: 탐지된 공격 수 -->
+                <div class="stat-card stat-card-danger">
+                    <div class="stat-icon">⚠️</div>
+                    <div class="stat-content">
+                        <h3 class="stat-label">탐지된 공격 수</h3>
+                        <!-- 백엔드에서 가져올 데이터: detectedAttacks -->
+                        <p class="stat-value" id="detectedAttacks">247</p>
+                        <p class="stat-change negative">↑ 8% (지난 시간 대비)</p>
+                    </div>
+                </div>
+
+                <!-- 카드 3: 2차 방어 시행 횟수 (CAPTCHA 등) -->
+                <div class="stat-card stat-card-warning">
+                    <div class="stat-icon">🛡️</div>
+                    <div class="stat-content">
+                        <h3 class="stat-label">2차 방어 시행</h3>
+                        <!-- 백엔드에서 가져올 데이터: secondaryDefenseCount -->
+                        <p class="stat-value" id="secondaryDefenseCount">89</p>
+                        <p class="stat-change">↑ 5% (지난 시간 대비)</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================
+                 메인 콘텐츠 섹션: 로그인 기록 + 차트
+                 ======================================== -->
+            <section class="content-section">
+                <!-- 왼쪽: 로그인 기록 테이블 -->
+                <div class="login-logs-container">
+                    <div class="section-header">
+                        <h2>최근 로그인 기록</h2>
+                        <div class="filter-buttons">
+                            <button class="filter-btn active" data-filter="all">전체</button>
+                            <button class="filter-btn" data-filter="suspicious">의심 활동</button>
+                            <button class="filter-btn" data-filter="blocked">차단됨</button>
+                        </div>
+                    </div>
+
+                    <!-- 로그인 기록 테이블 -->
+                    <!-- 백엔드 API: /api/admin/login-logs -->
+                    <div class="table-container">
+                        <table class="login-logs-table">
+                            <thead>
+                                <tr>
+                                    <th>시간</th>
+                                    <th>사용자 ID</th>
+                                    <th>IP 주소</th>
+                                    <th>User-Agent</th>
+                                    <th>Referer</th>
+                                    <th>언어</th>
+                                    <th>위험도</th>
+                                    <th>상태</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loginLogsBody">
+                                <!-- JavaScript로 동적 생성될 부분 -->
+                                <!-- 백엔드에서 받아올 데이터 예시:
+                                {
+                                    "time": "14:32:15",
+                                    "userId": "user123",
+                                    "ip": "203.142.78.45",
+                                    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)...",
+                                    "referer": "https://google.com",
+                                    "language": "ko-KR",
+                                    "riskScore": 85,
+                                    "status": "blocked"
+                                }
+                                -->
+                                
+                                <!-- 프로토타입 예시 데이터 (실제로는 JavaScript로 렌더링) -->
+                                <tr class="risk-high">
+                                    <td>14:32:15</td>
+                                    <td>user123</td>
+                                    <td>203.142.78.45</td>
+                                    <td class="truncate">Mozilla/5.0 (Windows NT 10.0)</td>
+                                    <td class="truncate">https://google.com</td>
+                                    <td>ko-KR</td>
+                                    <td>
+                                        <span class="risk-badge risk-high">85</span>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-blocked">차단됨</span>
+                                    </td>
+                                </tr>
+                                <tr class="risk-medium">
+                                    <td>14:31:42</td>
+                                    <td>admin</td>
+                                    <td>185.220.101.23</td>
+                                    <td class="truncate">Python-requests/2.28.0</td>
+                                    <td class="truncate">-</td>
+                                    <td>en-US</td>
+                                    <td>
+                                        <span class="risk-badge risk-medium">65</span>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-warning">의심</span>
+                                    </td>
+                                </tr>
+                                <tr class="risk-low">
+                                    <td>14:30:18</td>
+                                    <td>joesung</td>
+                                    <td>127.0.0.1</td>
+                                    <td class="truncate">Mozilla/5.0 (Macintosh; Intel Mac OS X)</td>
+                                    <td class="truncate">https://securebank.com</td>
+                                    <td>ko-KR</td>
+                                    <td>
+                                        <span class="risk-badge risk-low">12</span>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-success">정상</span>
+                                    </td>
+                                </tr>
+                                <tr class="risk-high">
+                                    <td>14:29:55</td>
+                                    <td>testuser</td>
+                                    <td>91.203.5.167</td>
+                                    <td class="truncate">curl/7.68.0</td>
+                                    <td class="truncate">-</td>
+                                    <td>-</td>
+                                    <td>
+                                        <span class="risk-badge risk-high">92</span>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-blocked">차단됨</span>
+                                    </td>
+                                </tr>
+                                <tr class="risk-medium">
+                                    <td>14:28:33</td>
+                                    <td>user456</td>
+                                    <td>203.142.78.46</td>
+                                    <td class="truncate">Mozilla/5.0 (Linux; Android 10)</td>
+                                    <td class="truncate">https://naver.com</td>
+                                    <td>ko-KR</td>
+                                    <td>
+                                        <span class="risk-badge risk-medium">48</span>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-success">정상</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 페이지네이션 -->
+                    <div class="pagination">
+                        <button class="pagination-btn" disabled>이전</button>
+                        <span class="pagination-info">1 / 10</span>
+                        <button class="pagination-btn">다음</button>
+                    </div>
+                </div>
+
+                <!-- 오른쪽: 공격 탐지 비율 차트 -->
+                <div class="chart-container">
+                    <div class="section-header">
+                        <h2>공격 탐지 분석</h2>
+                    </div>
+                    
+                    <div class="chart-wrapper">
+                        <!-- 원 그래프 캔버스 -->
+                        <!-- 백엔드 API: /api/admin/attack-distribution -->
+                        <!-- 백엔드에서 받아올 데이터 예시:
+                        {
+                            "ipDistribution": 45,        // IP 주소 패턴 (분산 IP)
+                            "userAgentAnomaly": 40,      // User-Agent 이상 패턴
+                            "refererMismatch": 10,       // Referer 불일치
+                            "languageAnomaly": 5         // 언어 설정 이상
+                        }
+                        -->
+                        <canvas id="attackDistributionChart"></canvas>
+                    </div>
+
+                    <!-- 차트 범례 및 설명 -->
+                    <div class="chart-legend">
+                        <h3>탐지 기준 설명</h3>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #ef4444;"></span>
+                            <span class="legend-label">IP 주소 패턴 (45%)</span>
+                            <p class="legend-description">동일 국가/다른 IP 또는 VPN/프록시 사용 탐지</p>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #f59e0b;"></span>
+                            <span class="legend-label">User-Agent 이상 (40%)</span>
+                            <p class="legend-description">동일 브라우저/OS 패턴 또는 봇 시그니처 탐지</p>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #3b82f6;"></span>
+                            <span class="legend-label">Referer 불일치 (10%)</span>
+                            <p class="legend-description">외부 링크 또는 자동화 유입 경로 탐지</p>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #8b5cf6;"></span>
+                            <span class="legend-label">언어 설정 이상 (5%)</span>
+                            <p class="legend-description">Accept-Language 누락 또는 이상 조합 탐지</p>
+                        </div>
+                    </div>
+
+                    <!-- 실시간 업데이트 인디케이터 -->
+                    <div class="live-indicator">
+                        <span class="live-dot"></span>
+                        실시간 모니터링 중
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- ========================================
+         JavaScript 파일
+         ======================================== -->
+    
+    <!-- 관리자 전용 스크립트 -->
+    <script src="script_1.js"></script>
+</body>
+</html>

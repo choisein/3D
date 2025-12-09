@@ -1,0 +1,7 @@
+[09-Dec-2025 00:06:10 Asia/Seoul] PHP Warning:  Undefined variable $pdo in /hosting/capstone3d/html/login.php on line 47
+[09-Dec-2025 00:06:10 Asia/Seoul] PHP Fatal error:  Uncaught Error: Call to a member function prepare() on null in /hosting/capstone3d/html/login.php:278
+Stack trace:
+#0 /hosting/capstone3d/html/login.php(47): analyzeIP()
+#1 {main}
+  thrown in /hosting/capstone3d/html/login.php on line 278
+[09-Dec-2025 00:13:40 Asia/Seoul] 로그 기록 실패: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'capstone3d.Loginlog' doesn't exist
