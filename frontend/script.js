@@ -247,16 +247,18 @@ function setupDynamicCaptcha() {
     
     // 10ms마다 버튼 재생성
     captchaRenderInterval = setInterval(() => {
+        // 1. 기존 버튼 완전 제거 (DOM 참조 무효화)
         const oldBtn = document.getElementById('dynamicCaptchaBtn');
         if (oldBtn) oldBtn.remove();
         
+        // 2. 새 버튼 생성
         const newBtn = document.createElement('button');
         newBtn.id = 'dynamicCaptchaBtn';
         newBtn.className = 'captcha-button';
         newBtn.textContent = 'CHECK';
         newBtn.type = 'button';
         
-        // 클릭 이벤트 등록
+        // 3. 클릭 이벤트 등록 (매번 새로 등록)
         // click 을 mousedonw으로 바꿔서 제대로 버튼 클릭 횟수가 기록되도록 바꿈에서 다시 mouseenter로 바꾸고 e.buttons로 버튼 state 확인
         // mouseenter + buttons 체크 (재생성된 버튼 감지용)
         newBtn.addEventListener('mouseenter', (e) => {
@@ -281,6 +283,7 @@ function setupDynamicCaptcha() {
         const offsetY = Math.random() * 4 - 2;
         newBtn.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
         
+        // 4. DOM에 추가
         wrapper.appendChild(newBtn);
         
     }, 10);  // 10ms마다 실행
