@@ -12,7 +12,7 @@ ID_FIELD_NAME = "userid"  # (예시)
 PW_FIELD_NAME = "password"  # (예시)
 
 # 1-3. 공격용 계정 파일
-ACCOUNTS_FILE = "사용자계정/사용자계정2/success_accounts2.csv"
+ACCOUNTS_FILE = "사용자계정/사용자계정2/attack_accounts.csv"
 # ------------------------------
 
 
@@ -184,10 +184,10 @@ try:
         headers_to_send['User-Agent'] = ua
         if random.random() < 0.85:
         # 85% Case: 브라우저 타입에 맞는 Accept 헤더 선택
-        headers_to_send['Accept'] = ACCEPT_HEADERS_BY_BROWSER[browser_type]
+            headers_to_send['Accept'] = ACCEPT_HEADERS_BY_BROWSER[browser_type]
         else:
         # 15% Case: 전체 Accept 헤더 목록에서 랜덤 선택
-        headers_to_send['Accept'] = random.choice(ALL_ACCEPT_VALUES)
+            headers_to_send['Accept'] = random.choice(ALL_ACCEPT_VALUES)
         
 
         # 2-3. Referer, Origin, Sec-Fetch 
@@ -196,7 +196,7 @@ try:
         else:
             referer = random.choice(ATTACK_REFERERS)
 
-        if random.randon() < 0.95:
+        if random.random() < 0.95:
             sec_set = random.choice(NORMAL_SEC_FETCH_SETS)
         else:
             sec_set = random.choice(ATTACK_SEC_FETCH_SETS)
