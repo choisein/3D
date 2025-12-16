@@ -3,7 +3,6 @@
 // ============================================
 // 전역 변수
 // ============================================
-let isLoading = false;
 let isLoggedIn = false;
 let currentUser = null;
 
@@ -248,21 +247,35 @@ function setupDynamicCaptcha() {
     
     // 10ms마다 버튼 재생성
     captchaRenderInterval = setInterval(() => {
+        // 1. 기존 버튼 완전 제거 (DOM 참조 무효화)
         const oldBtn = document.getElementById('dynamicCaptchaBtn');
         if (oldBtn) oldBtn.remove();
         
+        // 2. 새 버튼 생성
         const newBtn = document.createElement('button');
         newBtn.id = 'dynamicCaptchaBtn';
         newBtn.className = 'captcha-button';
         newBtn.textContent = 'CHECK';
         newBtn.type = 'button';
         
-        // 클릭 이벤트 등록
-        newBtn.addEventListener('click', (e) => {
+        // 3. 클릭 이벤트 등록 (매번 새로 등록)
+        // click 을 mousedonw으로 바꿔서 제대로 버튼 클릭 횟수가 기록되도록 바꿈에서 다시 mouseenter로 바꾸고 e.buttons로 버튼 state 확인
+        // mouseenter + buttons 체크 (재생성된 버튼 감지용)
+        newBtn.addEventListener('mouseenter', (e) => {
+            if (e.buttons === 1) {  // 왼쪽 버튼이 눌린 상태
+                e.preventDefault();
+                e.stopPropagation();
+                captchaClickCount++;
+                console.log('클릭 횟수:', captchaClickCount);
+            }
+        });
+
+        // mousedown 추가 (첫 클릭 감지용)
+        newBtn.addEventListener('mousedown', (e) => {
             e.preventDefault();
             e.stopPropagation();
             captchaClickCount++;
-            console.log('클릭 횟수:', captchaClickCount);
+            console.log('첫 클릭:', captchaClickCount);
         });
         
         // 약간의 위치 변화 (선택사항)
@@ -270,6 +283,7 @@ function setupDynamicCaptcha() {
         const offsetY = Math.random() * 4 - 2;
         newBtn.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
         
+        // 4. DOM에 추가
         wrapper.appendChild(newBtn);
         
     }, 10);  // 10ms마다 실행
@@ -637,7 +651,7 @@ async function handleLogin(event) {
         // Case 4: 로그인 성공
         currentUser = {
             id: data.id || id,
-            name: data.name ,
+            name: data.name || id,
             usernum: data.usernum
         };
         isLoggedIn = true;
